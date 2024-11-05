@@ -1,0 +1,30 @@
+name: Auto Version Bump on PR
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  version_bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the PR branch
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Bump version
+        run: |
+          # Perform the version bump (e.g., minor version increase)
+          npm version minor
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore: bump version for PR"
+          git push origin HEAD
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

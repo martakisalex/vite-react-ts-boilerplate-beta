@@ -21,6 +21,10 @@ jobs:
 
       - name: Fetch latest base and head branches
         run: |
+          # Debugging: Output base and head branch information
+          echo "Base branch: ${{ github.base_ref }}"
+          echo "Head branch: ${{ github.head_ref }}"
+          
           # Fetch the base branch and head branch for accurate diffing
           git fetch origin ${{ github.base_ref }} ${{ github.head_ref }}
 
@@ -31,6 +35,11 @@ jobs:
 
           # Define valid branch prefixes for source code changes
           valid_prefixes=("major/" "feat/" "fix/" "hotfix/" "refactor/" "test/" "style/")
+
+          # Debug: List available branches and recent commits for context
+          echo "Available branches and commits:"
+          git branch -a
+          git log -n 5 --oneline
 
           # Check if any source files in src/ were changed
           source_files_changed=$(git diff --name-only origin/${{ github.base_ref }} origin/${{ github.head_ref }} | grep -E '^src/')

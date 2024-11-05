@@ -1,0 +1,43 @@
+name: Source Code Modification Check
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - release
+      - main
+  push:
+    branches:
+      - release
+
+jobs:
+  check_source_code_modification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if source code was modified in src/ and branch name is valid
+        run: |
+          branch_name="${{ github.head_ref }}"
+          target_branch="${{ github.base_ref }}"
+
+          # Define valid branch prefixes for source code changes
+          valid_prefixes=("major/" "feat/" "fix/" "hotfix/" "refactor/" "test/" "style/")
+
+          # Check if any source files in src/ were changed
+          source_files_changed=$(git diff --name-only origin/${{ github.base_ref }}...${{ github.head_ref }} | grep -E '^src/')
+
+          # Check if the branch has a valid prefix for source code changes
+          is_valid_prefix=false
+          for prefix in "${valid_prefixes[@]}"; do
+            if [[ "$branch_name" == "$prefix"* ]]; then
+              is_valid_prefix=true
+              break
+            fi
+          done
+
+          # Fail if src/ code was modified but branch name is not allowed
+          if [[ -n "$source_files_changed" && "$is_valid_prefix" == false ]]; then
+            echo "Error: Modifications to src/ are only allowed on branches with prefixes: ${valid_prefixes[*]}."
+            exit 1
+          else
+            echo "Branch '$branch_name' is valid for src/ changes, or no src/ files were modified."
+          fi

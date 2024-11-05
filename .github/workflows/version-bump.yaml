@@ -12,22 +12,29 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: ${{ github.head_ref }}
+          fetch-depth: 0  # Ensures the full history is fetched for accurate diffing
+
+      - name: Fetch develop branch
+        run: git fetch origin develop:develop
 
       - name: Set up Git user
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-      
+
       - name: Install dependencies
         run: npm install
 
       - name: Check if package.json was modified
         id: check_package
         run: |
-          if git diff --name-only origin/develop...HEAD | grep -q "package.json"; then
+          # Check if package.json is modified compared to develop
+          if git diff --name-only develop...HEAD | grep -q "package.json"; then
             echo "package_modified=true" >> $GITHUB_ENV
+            echo "package.json has been modified in this PR."
           else
             echo "package_modified=false" >> $GITHUB_ENV
+            echo "package.json has NOT been modified in this PR."
           fi
 
       - name: Bump version with custom commit message
@@ -36,7 +43,7 @@ jobs:
           npm version minor -m "chore: bump version to %s for PR"
           new_version=$(jq -r .version package.json)
           echo "New version is $new_version"
-      
+
       - name: Push version bump commit
         if: env.package_modified == 'false'
         env:

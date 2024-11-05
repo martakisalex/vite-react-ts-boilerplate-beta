@@ -14,6 +14,14 @@ jobs:
   check_source_code_modification:
     runs-on: ubuntu-latest
     steps:
+      - name: Check out the code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Fetch full history for accurate diff
+
+      - name: Fetch latest base branch
+        run: git fetch origin ${{ github.base_ref }}
+
       - name: Check if source code was modified in src/ and branch name is valid
         run: |
           branch_name="${{ github.head_ref }}"
@@ -24,6 +32,10 @@ jobs:
 
           # Check if any source files in src/ were changed
           source_files_changed=$(git diff --name-only origin/${{ github.base_ref }}...${{ github.head_ref }} | grep -E '^src/')
+
+          # Debug: Show which files are detected as modified
+          echo "Modified files in src/:"
+          echo "$source_files_changed"
 
           # Check if the branch has a valid prefix for source code changes
           is_valid_prefix=false

@@ -1,11 +1,11 @@
-name: Auto Version Bump on PR
+name: Auto Version Check and Bump on PR
 
 on:
   pull_request:
     types: [opened, synchronize]
 
 jobs:
-  version_bump:
+  version_check_and_bump:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the PR branch
@@ -22,31 +22,58 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Check for manual changes to package.json or package-lock.json
-        id: check_manual_changes
+      - name: Get current version from develop
+        id: get_develop_version
         run: |
-          # Check if package.json or package-lock.json has been modified
-          if git diff --name-only develop...HEAD | grep -Eq "package(-lock)?.json"; then
-            echo "package_files_modified=true" >> $GITHUB_ENV
-            echo "Error: package.json or package-lock.json was modified manually. Failing the build."
-            exit 1  # Fail the build
+          git checkout develop
+          develop_version=$(jq -r .version package.json)
+          echo "develop_version=$develop_version" >> $GITHUB_ENV
+          echo "Current version on develop: $develop_version"
+        
+      - name: Determine expected version based on branch type
+        id: determine_version
+        run: |
+          # Extract the branch type (major, minor, fix, etc.)
+          branch_name="${{ github.head_ref }}"
+          current_version="${{ env.develop_version }}"
+
+          # Determine next expected version based on branch naming convention
+          if [[ "$branch_name" == major/* ]]; then
+            expected_version=$(echo "$current_version" | awk -F. '{print $1+1 ".0.0"}')
+          elif [[ "$branch_name" == minor/* ]]; then
+            expected_version=$(echo "$current_version" | awk -F. '{print $1 "." $2+1 ".0"}')
+          elif [[ "$branch_name" == fix/* ]]; then
+            expected_version=$(echo "$current_version" | awk -F. '{print $1 "." $2 "." $3+1}')
           else
-            echo "package_files_modified=false" >> $GITHUB_ENV
+            # For branches like docs/... or ci/... expect no version change
+            expected_version="$current_version"
           fi
 
+          echo "Expected version based on branch: $expected_version"
+          echo "expected_version=$expected_version" >> $GITHUB_ENV
+
+      - name: Check version in package.json matches expected version
+        id: check_version
+        run: |
+          current_version=$(jq -r .version package.json)
+          echo "Version in package.json: $current_version"
+          if [ "$current_version" != "${{ env.expected_version }}" ]; then
+            echo "Error: package.json version is $current_version but expected ${{ env.expected_version }}."
+            exit 1
+          fi
+          
       - name: Install dependencies
-        if: env.package_files_modified == 'false'
         run: npm install
 
       - name: Bump version with custom commit message
-        if: env.package_files_modified == 'false'
+        if: env.expected_version != env.develop_version
         run: |
-          npm version minor -m "chore: bump version to %s for PR"
+          npm version "${{ github.head_ref }}" -m "chore: bump version to %s for PR"
           new_version=$(jq -r .version package.json)
           echo "New version is $new_version"
       
       - name: Push version bump commit
-        if: env.package_files_modified == 'false'
+        if: env.expected_version != env.develop_version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

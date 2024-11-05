@@ -1,4 +1,4 @@
-name: Branch Protection
+name: Branch Protection and Source Code Modification Check
 
 on:
   pull_request:
@@ -11,13 +11,17 @@ on:
       - release
 
 jobs:
-  restrict_merge:
+  branch_protection:
     runs-on: ubuntu-latest
     steps:
       - name: Check if the source branch is valid for the target branch
         run: |
           branch_name="${{ github.head_ref }}"
           target_branch="${{ github.base_ref }}"
+
+          # Define valid branch prefixes for develop/release merges and main merges
+          valid_prefixes_develop_release=("release/" "fix/" "feat/" "major/" "ci/" "docs/" "hotfix/" "chore/" "test/" "refactor/" "style/")
+          valid_prefixes_main=("release/")
 
           # Enforce rules for merges into main
           if [[ "$target_branch" == "main" ]]; then
@@ -31,10 +35,48 @@ jobs:
 
           # Enforce rules for merges into develop or release
           if [[ "$target_branch" == "develop" || "$target_branch" == "release" ]]; then
-            if [[ "$branch_name" != release/* && "$branch_name" != fix/* && "$branch_name" != feat/* && "$branch_name" != major/* && "$branch_name" != ci/* && "$branch_name" != docs/* && "$branch_name" != hotfix/* && "$branch_name" != chore/* && "$branch_name" != test/* && "$branch_name" != refactor/* && "$branch_name" != style/* ]]; then
+            is_valid_prefix=false
+            for prefix in "${valid_prefixes_develop_release[@]}"; do
+              if [[ "$branch_name" == "$prefix"* ]]; then
+                is_valid_prefix=true
+                break
+              fi
+            done
+            if [[ "$is_valid_prefix" == false ]]; then
               echo "Error: Only branches starting with release/, fix/, feat/, major/, ci/, docs/, hotfix/, chore/, test/, refactor/, or style/ can be merged or pushed into develop or release."
               exit 1
             else
               echo "Branch '$branch_name' is allowed to merge or push into develop or release."
             fi
+          fi
+
+  source_code_modification_check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if source code was modified in src/ and branch name is valid
+        run: |
+          branch_name="${{ github.head_ref }}"
+          target_branch="${{ github.base_ref }}"
+
+          # Define valid branch prefixes for source code changes
+          valid_prefixes_src_changes=("major/" "feat/" "fix/" "hotfix/" "refactor/" "test/" "style/")
+
+          # Check if any source files in src/ were changed
+          source_files_changed=$(git diff --name-only origin/${{ github.base_ref }}...${{ github.head_ref }} | grep -E '^src/')
+
+          # Check if the branch has a valid prefix for source code changes
+          is_valid_prefix=false
+          for prefix in "${valid_prefixes_src_changes[@]}"; do
+            if [[ "$branch_name" == "$prefix"* ]]; then
+              is_valid_prefix=true
+              break
+            fi
+          done
+
+          # Fail if src/ code was modified but branch name is not allowed
+          if [[ -n "$source_files_changed" && "$is_valid_prefix" == false ]]; then
+            echo "Error: Modifications to src/ are only allowed on branches with prefixes: ${valid_prefixes_src_changes[*]}."
+            exit 1
+          else
+            echo "Branch '$branch_name' is valid for src/ changes, or no src/ files were modified."
           fi

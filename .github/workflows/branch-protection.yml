@@ -1,0 +1,40 @@
+name: Branch Protection
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - release
+  push:
+    branches:
+      - release
+
+jobs:
+  restrict_merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if the source branch is valid for the target branch
+        run: |
+          branch_name="${{ github.head_ref }}"
+          target_branch="${{ github.base_ref }}"
+
+          # Enforce rules for merges into main
+          if [[ "$target_branch" == "main" ]]; then
+            if [[ "$branch_name" != release/* ]]; then
+              echo "Error: Only branches starting with 'release/' can be merged into main."
+              exit 1
+            else
+              echo "Branch '$branch_name' is allowed to merge into main."
+            fi
+          fi
+
+          # Enforce rules for merges into develop or release
+          if [[ "$target_branch" == "develop" || "$target_branch" == "release" ]]; then
+            if [[ "$branch_name" != release/* && "$branch_name" != fix/* && "$branch_name" != feat/* && "$branch_name" != major/* && "$branch_name" != ci/* && "$branch_name" != docs/* && "$branch_name" != hotfix/* && "$branch_name" != chore/* && "$branch_name" != test/* && "$branch_name" != refactor/* && "$branch_name" != style/* ]]; then
+              echo "Error: Only branches starting with release/, fix/, feat/, major/, ci/, docs/, hotfix/, chore/, test/, refactor/, or style/ can be merged or pushed into develop or release."
+              exit 1
+            else
+              echo "Branch '$branch_name' is allowed to merge or push into develop or release."
+            fi
+          fi

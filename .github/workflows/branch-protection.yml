@@ -2,6 +2,11 @@ name: Branch Protection
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
     branches:
       - main
       - develop
@@ -15,6 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check if the source branch is valid for the target branch
+        if: |
+          github.event.action == 'edited' &&
+          github.event.changes.base
         run: |
           branch_name="${{ github.head_ref }}"
           target_branch="${{ github.base_ref }}"

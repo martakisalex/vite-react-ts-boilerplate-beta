@@ -46,8 +46,11 @@ jobs:
           # Identify modified files in the src/ directory
           modified_files=$(git diff --diff-filter=M --name-only "$BASE_REF"...HEAD | grep '^src/')
           
-          # Combine added and modified files
-          all_changed_files=$(echo -e "$added_files\n$modified_files" | sort -u)
+          # Identify deleted files in the src/ directory
+          deleted_files=$(git diff --diff-filter=D --name-only "$BASE_REF"...HEAD | grep '^src/')
+          
+          # Combine all changed files
+          all_changed_files=$(echo -e "$added_files\n$modified_files\n$deleted_files" | sort -u)
           
           if [[ -n "$all_changed_files" ]]; then
             echo "Changes found in src/ directory:"
@@ -57,6 +60,7 @@ jobs:
             echo "src_changes=true" >> $GITHUB_ENV
             echo "added_files=$(echo "$added_files" | tr '\n' ' ')" >> $GITHUB_ENV
             echo "modified_files=$(echo "$modified_files" | tr '\n' ' ')" >> $GITHUB_ENV
+            echo "deleted_files=$(echo "$deleted_files" | tr '\n' ' ')" >> $GITHUB_ENV
             echo "all_changed_files=$all_changed_files_single_line" >> $GITHUB_ENV
           else
             echo "No changes in src/ directory"
@@ -78,6 +82,10 @@ jobs:
           done
           # Commands for modified files
           for file in ${{ env.modified_files }}; do
+            echo "git checkout ${{ env.BASE_REF }} -- $file"
+          done
+          # Commands for deleted files
+          for file in ${{ env.deleted_files }}; do
             echo "git checkout ${{ env.BASE_REF }} -- $file"
           done
           echo ""

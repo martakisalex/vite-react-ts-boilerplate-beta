@@ -81,18 +81,14 @@ jobs:
           
           # Display modified files
           if [[ -n "${{ env.modified_files }}" ]]; then
-            if [[ -n "${{ env.added_files }}" ]]; then
-              echo ""
-            fi
+            echo ""
             echo "Modified files:"
             echo "${{ env.modified_files }}" | tr ' ' '\n'
           fi
           
           # Display deleted files
           if [[ -n "${{ env.deleted_files }}" ]]; then
-            if [[ -n "${{ env.added_files }}} || [[ -n "${{ env.modified_files }}" ]]; then
-              echo ""
-            fi
+            echo ""
             echo "Deleted files:"
             echo "${{ env.deleted_files }}" | tr ' ' '\n'
           fi

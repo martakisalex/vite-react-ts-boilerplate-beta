@@ -121,7 +121,6 @@ jobs:
           echo ""
           echo "git checkout -b new-branch-name origin/${{ env.BASE_REF }}"
           echo "git checkout ${{ github.head_ref }} -- ${{ env.all_changed_files }}"
-          echo "git commit -m 'Isolate src/ directory changes'"
           echo ""
           echo "Please ensure this complies with branch naming policies."
           exit 1

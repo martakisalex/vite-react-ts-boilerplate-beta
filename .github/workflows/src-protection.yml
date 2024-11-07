@@ -45,8 +45,10 @@ jobs:
           if [[ -n "$changed_files" ]]; then
             echo "Changes found in src/ directory:"
             echo "$changed_files"
+            # Replace newline characters with a space for environment variable compatibility
+            changed_files_single_line=$(echo "$changed_files" | tr '\n' ' ')
             echo "src_changes=true" >> $GITHUB_ENV
-            echo "changed_files=$changed_files" >> $GITHUB_ENV
+            echo "changed_files=$changed_files_single_line" >> $GITHUB_ENV
           else
             echo "No changes in src/ directory"
             echo "src_changes=false" >> $GITHUB_ENV
@@ -56,6 +58,7 @@ jobs:
         if: env.src_changes == 'true'
         run: |
           echo "This pull request includes changes in the src/ directory. The following files have been modified:"
-          echo "${{ env.changed_files }}"
+          # Restore newline characters for display
+          echo "${{ env.changed_files }}" | tr ' ' '\n'
           echo "Please ensure this complies with branch naming policies."
           exit 1

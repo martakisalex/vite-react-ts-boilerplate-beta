@@ -86,10 +86,9 @@ jobs:
           echo ""
           echo "To create a new branch with only the src/ directory changes from this branch, you can run the following commands:"
           echo ""
-          echo "git checkout -b new-branch-name origin/${{ github.base_ref }}"
+          echo "git checkout -b <new-branch-name> origin/${{ github.base_ref }}"
           echo "git checkout ${{ github.head_ref }} -- $(echo $added_files $modified_files | tr '\n' ' ')"
           echo "git restore --source=${{ github.head_ref }} --staged --worktree $(echo $deleted_files | tr '\n' ' ')"
-          echo "git commit -m 'Isolate src/ directory changes'"
           echo ""
           echo "Please ensure this complies with branch naming policies."
           exit 1

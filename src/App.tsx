@@ -1,7 +1,7 @@
 function App() {
   return (
     <div>
-      <h1>vite-react-ts-boilerplate-bet</h1>
+      <h1>vite-react-ts-boilerplate-beta</h1>
     </div>
   );
 }

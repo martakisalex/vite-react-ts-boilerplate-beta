@@ -44,20 +44,20 @@ jobs:
           echo "Modified files in src/:"
           echo "$source_files_changed"
 
-          # If files were changed, check if these changes result in a net difference from the base branch
-          has_net_changes=false
-          for file in $source_files_changed; do
-            if [[ -n "$(git diff FETCH_HEAD:$file $GITHUB_SHA:$file)" ]]; then
-              has_net_changes=true
-              break
-            fi
-          done
-
           # Check if the branch has a valid prefix for source code changes
           is_valid_prefix=false
           for prefix in "${valid_prefixes[@]}"; do
             if [[ "$branch_name" == "$prefix"* ]]; then
               is_valid_prefix=true
+              break
+            fi
+          done
+
+          # Check if any modified src/ files have net changes compared to the target branch
+          has_net_changes=false
+          for file in $source_files_changed; do
+            if ! git diff --quiet FETCH_HEAD:$file $GITHUB_SHA:$file; then
+              has_net_changes=true
               break
             fi
           done

@@ -20,8 +20,11 @@ jobs:
       - name: Compare src/ directory changes
         id: src-changes
         run: |
-          # Check if there are any changes in the src directory
-          if git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep '^src/'; then
+          # Determine the base branch to compare against
+          BASE_REF="${{ github.event.pull_request.base.ref || 'origin/main' }}"
+          
+          # Check for changes in the src directory
+          if git diff --name-only "$BASE_REF"...HEAD | grep '^src/'; then
             echo "Changes found in src/ directory"
             echo "src_changes=true" >> $GITHUB_ENV
           else

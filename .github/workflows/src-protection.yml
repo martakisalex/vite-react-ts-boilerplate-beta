@@ -54,11 +54,18 @@ jobs:
             echo "src_changes=false" >> $GITHUB_ENV
           fi
 
-      - name: Fail if src/ has changes
+      - name: Display revert commands if src/ has changes
         if: env.src_changes == 'true'
         run: |
           echo "This pull request includes changes in the src/ directory. The following files have been modified:"
           # Restore newline characters for display
           echo "${{ env.changed_files }}" | tr ' ' '\n'
+          echo ""
+          echo "To revert these changes to their state in the base branch, you can run the following commands:"
+          echo ""
+          for file in ${{ env.changed_files }}; do
+            echo "git checkout ${{ env.BASE_REF }} -- $file"
+          done
+          echo ""
           echo "Please ensure this complies with branch naming policies."
           exit 1

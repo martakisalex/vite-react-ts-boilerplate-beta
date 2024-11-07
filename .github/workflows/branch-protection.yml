@@ -19,6 +19,10 @@ jobs:
           branch_name="${{ github.head_ref }}"
           target_branch="${{ github.base_ref }}"
 
+          # Define valid branch prefixes for develop/release merges and main merges
+          valid_prefixes_develop_release=("release/" "fix/" "feat/" "major/" "ci/" "docs/" "hotfix/" "chore/" "test/" "refactor/" "style/")
+          valid_prefixes_main=("release/")
+
           # Enforce rules for merges into main
           if [[ "$target_branch" == "main" ]]; then
             if [[ "$branch_name" != release/* ]]; then
@@ -31,7 +35,14 @@ jobs:
 
           # Enforce rules for merges into develop or release
           if [[ "$target_branch" == "develop" || "$target_branch" == "release" ]]; then
-            if [[ "$branch_name" != release/* && "$branch_name" != fix/* && "$branch_name" != feat/* && "$branch_name" != major/* && "$branch_name" != ci/* && "$branch_name" != docs/* && "$branch_name" != hotfix/* && "$branch_name" != chore/* && "$branch_name" != test/* && "$branch_name" != refactor/* && "$branch_name" != style/* ]]; then
+            is_valid_prefix=false
+            for prefix in "${valid_prefixes_develop_release[@]}"; do
+              if [[ "$branch_name" == "$prefix"* ]]; then
+                is_valid_prefix=true
+                break
+              fi
+            done
+            if [[ "$is_valid_prefix" == false ]]; then
               echo "Error: Only branches starting with release/, fix/, feat/, major/, ci/, docs/, hotfix/, chore/, test/, refactor/, or style/ can be merged or pushed into develop or release."
               exit 1
             else

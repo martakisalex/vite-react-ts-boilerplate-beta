@@ -16,6 +16,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for accurate diff comparison
+
+      - name: Fetch all branches
+        run: git fetch --all
 
       - name: Compare src/ directory changes
         id: src-changes

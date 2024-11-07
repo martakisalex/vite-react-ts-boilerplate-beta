@@ -11,7 +11,7 @@ on:
       - release
 
 jobs:
-  restrict_merge:
+  restrict-merge:
     runs-on: ubuntu-latest
     steps:
       - name: Check if the source branch is valid for the target branch

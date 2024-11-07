@@ -19,108 +19,77 @@ jobs:
         with:
           fetch-depth: 0  # Ensures full history is fetched for accurate diff comparison
 
-      - name: Fetch the base branch
-        run: |
-          # Fetch only the specific base branch and update it locally
-          git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
-
-      - name: Determine base branch and set BASE_REF
-        id: determine-base
-        run: |
-          # Set the base branch to the pull request's base branch or main as a fallback
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "BASE_REF=${{ github.event.pull_request.base.ref }}" >> $GITHUB_ENV
-          else
-            echo "BASE_REF=main" >> $GITHUB_ENV
-          fi
-
-      - name: Compare src/ directory changes
+      - name: Determine src/ directory changes
         id: src-changes
-        run: |
-          # Use the BASE_REF determined from the previous step
-          echo "Comparing changes with base branch: origin/$BASE_REF"
-          
-          # Identify added files in the src/ directory
-          added_files=$(git diff --diff-filter=A --name-only origin/$BASE_REF...HEAD | grep '^src/' || true)
-          
-          # Identify modified files in the src/ directory
-          modified_files=$(git diff --diff-filter=M --name-only origin/$BASE_REF...HEAD | grep '^src/' || true)
-          
-          # Identify deleted files in the src/ directory
-          deleted_files=$(git diff --diff-filter=D --name-only origin/$BASE_REF...HEAD | grep '^src/' || true)
-          
-          # Combine all changed files
-          all_changed_files=$(echo -e "$added_files\n$modified_files\n$deleted_files" | sort -u | tr '\n' ' ')
-          
-          if [[ -n "$all_changed_files" ]]; then
-            echo "Changes found in src/ directory:"
-            echo "$all_changed_files"
-            echo "src_changes=true" >> $GITHUB_ENV
-            echo "added_files=$added_files" >> $GITHUB_ENV
-            echo "modified_files=$modified_files" >> $GITHUB_ENV
-            echo "deleted_files=$deleted_files" >> $GITHUB_ENV
-            echo "all_changed_files=$all_changed_files" >> $GITHUB_ENV
-          else
-            echo "No changes in src/ directory"
-            echo "src_changes=false" >> $GITHUB_ENV
-          fi
+        uses: dorny/paths-filter@v2
+        with:
+          filters: |
+            src:
+              - 'src/**'
 
-      - name: Display revert commands if src/ has changes
-        if: env.src_changes == 'true'
+      - name: Display changes and revert commands
+        if: steps.src-changes.outputs.src == 'true'
         run: |
           echo "This pull request includes changes in the src/ directory."
-          
+
+          # Identify added, modified, and deleted files
+          added_files=$(git diff --diff-filter=A --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
+          modified_files=$(git diff --diff-filter=M --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
+          deleted_files=$(git diff --diff-filter=D --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
+
           # Display added files
-          if [[ -n "${{ env.added_files }}" ]]; then
+          if [[ -n "$added_files" ]]; then
             echo ""
             echo "Added files:"
-            echo "${{ env.added_files }}" | tr ' ' '\n'
+            echo "$added_files"
           fi
-          
+
           # Display modified files
-          if [[ -n "${{ env.modified_files }}" ]]; then
+          if [[ -n "$modified_files" ]]; then
             echo ""
             echo "Modified files:"
-            echo "${{ env.modified_files }}" | tr ' ' '\n'
+            echo "$modified_files"
           fi
-          
+
           # Display deleted files
-          if [[ -n "${{ env.deleted_files }}" ]]; then
+          if [[ -n "$deleted_files" ]]; then
             echo ""
             echo "Deleted files:"
-            echo "${{ env.deleted_files }}" | tr ' ' '\n'
+            echo "$deleted_files"
           fi
-          
+
           echo ""
           echo "To revert these changes to their state in the base branch, you can run the following commands:"
           echo ""
-          
+
           # Commands for added files
-          if [[ -n "${{ env.added_files }}" ]]; then
-            for file in ${{ env.added_files }}; do
+          if [[ -n "$added_files" ]]; then
+            for file in $added_files; do
               echo "git rm --cached $file"
             done
           fi
-          
+
           # Commands for modified files
-          if [[ -n "${{ env.modified_files }}" ]]; then
-            for file in ${{ env.modified_files }}; do
-              echo "git checkout origin/${{ env.BASE_REF }} -- $file"
+          if [[ -n "$modified_files" ]]; then
+            for file in $modified_files; do
+              echo "git checkout origin/${{ github.base_ref }} -- $file"
             done
           fi
-          
+
           # Commands for deleted files
-          if [[ -n "${{ env.deleted_files }}" ]]; then
-            for file in ${{ env.deleted_files }}; do
-              echo "git checkout origin/${{ env.BASE_REF }} -- $file"
+          if [[ -n "$deleted_files" ]]; then
+            for file in $deleted_files; do
+              echo "git restore --source=origin/${{ github.base_ref }} --staged --worktree $file"
             done
           fi
-          
+
           echo ""
           echo "To create a new branch with only the src/ directory changes from this branch, you can run the following commands:"
           echo ""
-          echo "git checkout -b new-branch-name origin/${{ env.BASE_REF }}"
-          echo "git checkout ${{ github.head_ref }} -- ${{ env.all_changed_files }}"
+          echo "git checkout -b new-branch-name origin/${{ github.base_ref }}"
+          echo "git checkout ${{ github.head_ref }} -- $(echo $added_files $modified_files | tr '\n' ' ')"
+          echo "git restore --source=${{ github.head_ref }} --staged --worktree $(echo $deleted_files | tr '\n' ' ')"
+          echo "git commit -m 'Isolate src/ directory changes'"
           echo ""
           echo "Please ensure this complies with branch naming policies."
           exit 1

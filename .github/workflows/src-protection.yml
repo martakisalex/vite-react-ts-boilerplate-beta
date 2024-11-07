@@ -1,4 +1,4 @@
-name: Src Code Protection
+name: Source Code Protection
 
 on:
   pull_request:

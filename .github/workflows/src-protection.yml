@@ -29,39 +29,37 @@ jobs:
         run: |
           # Set the base branch to the pull request's base branch or main as a fallback
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "BASE_REF=origin/${{ github.event.pull_request.base.ref }}" >> $GITHUB_ENV
+            echo "BASE_REF=${{ github.event.pull_request.base.ref }}" >> $GITHUB_ENV
           else
-            echo "BASE_REF=origin/main" >> $GITHUB_ENV
+            echo "BASE_REF=main" >> $GITHUB_ENV
           fi
 
       - name: Compare src/ directory changes
         id: src-changes
         run: |
           # Use the BASE_REF determined from the previous step
-          echo "Comparing changes with base branch: $BASE_REF"
+          echo "Comparing changes with base branch: origin/$BASE_REF"
           
           # Identify added files in the src/ directory
-          added_files=$(git diff --diff-filter=A --name-only "$BASE_REF"...HEAD | grep '^src/')
+          added_files=$(git diff --diff-filter=A --name-only origin/$BASE_REF...HEAD | grep '^src/' || true)
           
           # Identify modified files in the src/ directory
-          modified_files=$(git diff --diff-filter=M --name-only "$BASE_REF"...HEAD | grep '^src/')
+          modified_files=$(git diff --diff-filter=M --name-only origin/$BASE_REF...HEAD | grep '^src/' || true)
           
           # Identify deleted files in the src/ directory
-          deleted_files=$(git diff --diff-filter=D --name-only "$BASE_REF"...HEAD | grep '^src/')
+          deleted_files=$(git diff --diff-filter=D --name-only origin/$BASE_REF...HEAD | grep '^src/' || true)
           
           # Combine all changed files
-          all_changed_files=$(echo -e "$added_files\n$modified_files\n$deleted_files" | sort -u)
+          all_changed_files=$(echo -e "$added_files\n$modified_files\n$deleted_files" | sort -u | tr '\n' ' ')
           
           if [[ -n "$all_changed_files" ]]; then
             echo "Changes found in src/ directory:"
             echo "$all_changed_files"
-            # Replace newline characters with a space for environment variable compatibility
-            all_changed_files_single_line=$(echo "$all_changed_files" | tr '\n' ' ')
             echo "src_changes=true" >> $GITHUB_ENV
-            echo "added_files=$(echo "$added_files" | tr '\n' ' ')" >> $GITHUB_ENV
-            echo "modified_files=$(echo "$modified_files" | tr '\n' ' ')" >> $GITHUB_ENV
-            echo "deleted_files=$(echo "$deleted_files" | tr '\n' ' ')" >> $GITHUB_ENV
-            echo "all_changed_files=$all_changed_files_single_line" >> $GITHUB_ENV
+            echo "added_files=$added_files" >> $GITHUB_ENV
+            echo "modified_files=$modified_files" >> $GITHUB_ENV
+            echo "deleted_files=$deleted_files" >> $GITHUB_ENV
+            echo "all_changed_files=$all_changed_files" >> $GITHUB_ENV
           else
             echo "No changes in src/ directory"
             echo "src_changes=false" >> $GITHUB_ENV
@@ -107,17 +105,23 @@ jobs:
           # Commands for modified files
           if [[ -n "${{ env.modified_files }}" ]]; then
             for file in ${{ env.modified_files }}; do
-              echo "git checkout ${{ env.BASE_REF }} -- $file"
+              echo "git checkout origin/${{ env.BASE_REF }} -- $file"
             done
           fi
           
           # Commands for deleted files
           if [[ -n "${{ env.deleted_files }}" ]]; then
             for file in ${{ env.deleted_files }}; do
-              echo "git checkout ${{ env.BASE_REF }} -- $file"
+              echo "git checkout origin/${{ env.BASE_REF }} -- $file"
             done
           fi
           
+          echo ""
+          echo "To create a new branch with only the src/ directory changes from this branch, you can run the following commands:"
+          echo ""
+          echo "git checkout -b new-branch-name origin/${{ env.BASE_REF }}"
+          echo "git checkout ${{ github.head_ref }} -- ${{ env.all_changed_files }}"
+          echo "git commit -m 'Isolate src/ directory changes'"
           echo ""
           echo "Please ensure this complies with branch naming policies."
           exit 1

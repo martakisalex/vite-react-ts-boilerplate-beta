@@ -1,4 +1,4 @@
-name: Check src Changes
+name: Src Code Protection
 
 on:
   pull_request:

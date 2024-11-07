@@ -13,6 +13,7 @@ on:
 jobs:
   check_source_code_modification:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out the code
         uses: actions/checkout@v2
@@ -32,18 +33,6 @@ jobs:
           # Define valid branch prefixes for source code changes
           valid_prefixes=("major/" "feat/" "fix/" "hotfix/" "refactor/" "test/" "style/" "perf/")
 
-          # Debug: List available branches and recent commits for context
-          echo "Available branches and commits:"
-          git branch -a
-          git log -n 5 --oneline
-
-          # Check if any source files in src/ were changed by comparing FETCH_HEAD (base branch) with GITHUB_SHA
-          source_files_changed=$(git diff --name-only FETCH_HEAD $GITHUB_SHA | grep -E '^src/')
-
-          # Debug: Show which files are detected as modified
-          echo "Modified files in src/:"
-          echo "$source_files_changed"
-
           # Check if the branch has a valid prefix for source code changes
           is_valid_prefix=false
           for prefix in "${valid_prefixes[@]}"; do
@@ -53,22 +42,17 @@ jobs:
             fi
           done
 
-          # Check if any modified src/ files have net changes compared to the target branch
-          has_net_changes=false
-          undo_commands=""
-          for file in $source_files_changed; do
-            if ! git diff --quiet FETCH_HEAD:$file $GITHUB_SHA:$file; then
-              has_net_changes=true
-              # Append each undo command for the user to execute
-              undo_commands+="git checkout $target_branch -- $file\n"
-            fi
-          done
-
-          # Fail if there are net changes in src/ and branch name is not allowed, print undo commands
-          if [[ "$has_net_changes" == true && "$is_valid_prefix" == false ]]; then
+          # Check if any source files in src/ were changed by comparing FETCH_HEAD (base branch) with GITHUB_SHA
+          src_files_changed=$(git diff --name-only FETCH_HEAD $GITHUB_SHA | grep -E '^src/')
+          if [[ -n "$src_files_changed" && "$is_valid_prefix" == false ]]; then
+            # If there are src/ changes and the branch prefix is invalid, prepare revert commands
             echo "Error: Modifications to src/ are only allowed on branches with prefixes: ${valid_prefixes[*]}."
-            echo -e "To undo these changes in src/, run the following commands:\n$undo_commands"
+
+            # Generate a soft revert command for each modified src/ file
+            echo "To undo these changes and create a soft revert commit, run the following commands:"
+            echo "git checkout $target_branch -- $(echo $src_files_changed | tr '\n' ' ')"  # Checkout each modified file
+            echo "git commit -m 'Revert unauthorized src/ changes to match $target_branch'"  # Commit the reversion
             exit 1
           else
-            echo "Branch '$branch_name' is valid for src/ changes, or no net changes in src/ files."
+            echo "Branch '$branch_name' is valid for src/ changes, or no src/ files were modified."
           fi

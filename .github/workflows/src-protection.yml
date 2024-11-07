@@ -2,8 +2,13 @@ name: Check src Changes
 
 on:
   pull_request:
-    paths:
-      - "src/**"
+    branches:
+      - develop
+      - release
+      - main
+  push:
+    branches:
+      - release
 
 jobs:
   check-src-changes:

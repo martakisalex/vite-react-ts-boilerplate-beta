@@ -1,61 +1,31 @@
-name: Source Code Protection
+name: Check src Changes
 
 on:
   pull_request:
-    branches:
-      - develop
-      - release
-      - main
-  push:
-    branches:
-      - release
+    paths:
+      - "src/**"
 
 jobs:
-  check_source_code_modification:
+  check-src-changes:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out the code
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0  # Fetch full history for accurate diff
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Fetch latest base branch
+      - name: Compare src/ directory changes
+        id: src-changes
         run: |
-          echo "Fetching base branch: ${{ github.base_ref }}"
-          git fetch origin ${{ github.base_ref }} --depth=1
-
-      - name: Validate src/ changes and branch prefix
-        id: validate_src
-        run: |
-          branch_name="${{ github.head_ref }}"
-          target_branch="${{ github.base_ref }}"
-
-          # Define valid branch prefixes for source code changes
-          valid_prefixes=("major/" "feat/" "fix/" "hotfix/" "refactor/" "test/" "style/" "perf/")
-
-          # Check if the branch has a valid prefix
-          is_valid_prefix=false
-          for prefix in "${valid_prefixes[@]}"; do
-            if [[ "$branch_name" == "$prefix"* ]]; then
-              is_valid_prefix=true
-              break
-            fi
-          done
-
-          # Check if any source files in src/ were changed
-          src_files_changed=$(git diff --name-only FETCH_HEAD $GITHUB_SHA | grep -E '^src/')
-          if [[ -n "$src_files_changed" && "$is_valid_prefix" == false ]]; then
-            # Set the action output to fail if there is an unauthorized src/ modification
-            echo "::set-output name=fail::true"
+          # Check if there are any changes in the src directory
+          if git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep '^src/'; then
+            echo "Changes found in src/ directory"
+            echo "src_changes=true" >> $GITHUB_ENV
           else
-            echo "::set-output name=fail::false"
+            echo "No changes in src/ directory"
+            echo "src_changes=false" >> $GITHUB_ENV
           fi
 
-      - name: Fail if invalid branch with src changes
-        if: steps.validate_src.outputs.fail == 'true'
+      - name: Fail if src/ has changes
+        if: env.src_changes == 'true'
         run: |
-          echo "Error: Unauthorized src/ modifications detected. Branch prefix must be one of: ${valid_prefixes[*]}."
-          echo "To revert changes in 'src/' to match the target branch, run:"
-          echo "  git checkout origin/${{ github.base_ref }} -- src/"
+          echo "This pull request includes changes in the src/ directory. Please ensure this complies with branch naming policies."
           exit 1

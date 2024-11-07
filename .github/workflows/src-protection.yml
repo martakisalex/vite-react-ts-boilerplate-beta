@@ -19,15 +19,17 @@ jobs:
         with:
           fetch-depth: 0  # Ensures full history is fetched for accurate diff comparison
 
-      - name: Fetch all branches
-        run: git fetch origin +refs/heads/*:refs/remotes/origin/*
+      - name: Fetch the base branch
+        run: |
+          # Fetch only the specific base branch and update it locally
+          git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
 
       - name: Determine base branch and set BASE_REF
         id: determine-base
         run: |
           # Set the base branch to the pull request's base branch or main as a fallback
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "BASE_REF=${{ github.event.pull_request.base.ref }}" >> $GITHUB_ENV
+            echo "BASE_REF=origin/${{ github.event.pull_request.base.ref }}" >> $GITHUB_ENV
           else
             echo "BASE_REF=origin/main" >> $GITHUB_ENV
           fi

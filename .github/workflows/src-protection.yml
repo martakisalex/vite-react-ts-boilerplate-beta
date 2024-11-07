@@ -17,16 +17,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Fetch all history for accurate diff comparison
+          fetch-depth: 0  # Ensures full history is fetched for accurate diff comparison
 
       - name: Fetch all branches
-        run: git fetch --all
+        run: git fetch origin +refs/heads/*:refs/remotes/origin/*
+
+      - name: Determine base branch and set BASE_REF
+        id: determine-base
+        run: |
+          # Set the base branch to the pull request's base branch or main as a fallback
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "BASE_REF=${{ github.event.pull_request.base.ref }}" >> $GITHUB_ENV
+          else
+            echo "BASE_REF=origin/main" >> $GITHUB_ENV
+          fi
 
       - name: Compare src/ directory changes
         id: src-changes
         run: |
-          # Determine the base branch to compare against
-          BASE_REF="${{ github.event.pull_request.base.ref || 'origin/main' }}"
+          # Use the BASE_REF determined from the previous step
+          echo "Comparing changes with base branch: $BASE_REF"
           
           # Check for changes in the src directory
           if git diff --name-only "$BASE_REF"...HEAD | grep '^src/'; then

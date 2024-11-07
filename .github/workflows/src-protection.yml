@@ -55,16 +55,19 @@ jobs:
 
           # Check if any modified src/ files have net changes compared to the target branch
           has_net_changes=false
+          undo_commands=""
           for file in $source_files_changed; do
             if ! git diff --quiet FETCH_HEAD:$file $GITHUB_SHA:$file; then
               has_net_changes=true
-              break
+              # Append each undo command for the user to execute
+              undo_commands+="git checkout $target_branch -- $file\n"
             fi
           done
 
-          # Fail if there are net changes in src/ and branch name is not allowed
+          # Fail if there are net changes in src/ and branch name is not allowed, print undo commands
           if [[ "$has_net_changes" == true && "$is_valid_prefix" == false ]]; then
             echo "Error: Modifications to src/ are only allowed on branches with prefixes: ${valid_prefixes[*]}."
+            echo -e "To undo these changes in src/, run the following commands:\n$undo_commands"
             exit 1
           else
             echo "Branch '$branch_name' is valid for src/ changes, or no net changes in src/ files."

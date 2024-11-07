@@ -99,30 +99,25 @@ jobs:
           
           # Commands for added files
           if [[ -n "${{ env.added_files }}" ]]; then
-            echo "# Revert added files:"
             for file in ${{ env.added_files }}; do
               echo "git rm --cached $file"
             done
-            echo ""
           fi
           
           # Commands for modified files
           if [[ -n "${{ env.modified_files }}" ]]; then
-            echo "# Revert modified files:"
             for file in ${{ env.modified_files }}; do
               echo "git checkout ${{ env.BASE_REF }} -- $file"
             done
-            echo ""
           fi
           
           # Commands for deleted files
           if [[ -n "${{ env.deleted_files }}" ]]; then
-            echo "# Restore deleted files:"
             for file in ${{ env.deleted_files }}; do
               echo "git checkout ${{ env.BASE_REF }} -- $file"
             done
-            echo ""
           fi
           
+          echo ""
           echo "Please ensure this complies with branch naming policies."
           exit 1

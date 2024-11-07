@@ -27,68 +27,74 @@ jobs:
             src:
               - 'src/**'
 
-      - name: Display changes and revert commands
+      - name: Verify branch naming and src/ changes
         if: steps.src-changes.outputs.src == 'true'
         run: |
-          echo "This pull request includes changes in the src/ directory."
+          # Get the branch name
+          branch_name="${{ github.head_ref }}"
 
-          # Identify added, modified, and deleted files
-          added_files=$(git diff --diff-filter=A --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
-          modified_files=$(git diff --diff-filter=M --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
-          deleted_files=$(git diff --diff-filter=D --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
-
-          # Display added files
-          if [[ -n "$added_files" ]]; then
+          # Check if branch name starts with allowed prefixes
+          if [[ ! "$branch_name" =~ ^(feat/|fix/|style/|refactor/|perf/|test/).* ]]; then
+            echo "Changes in src/ directory are not allowed on this branch ($branch_name)."
             echo ""
-            echo "Added files:"
-            echo "$added_files"
-          fi
+            
+            # Identify added, modified, and deleted files
+            added_files=$(git diff --diff-filter=A --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
+            modified_files=$(git diff --diff-filter=M --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
+            deleted_files=$(git diff --diff-filter=D --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
 
-          # Display modified files
-          if [[ -n "$modified_files" ]]; then
+            # Display added files
+            if [[ -n "$added_files" ]]; then
+              echo "Added files:"
+              echo "$added_files"
+            fi
+
+            # Display modified files
+            if [[ -n "$modified_files" ]]; then
+              echo "Modified files:"
+              echo "$modified_files"
+            fi
+
+            # Display deleted files
+            if [[ -n "$deleted_files" ]]; then
+              echo "Deleted files:"
+              echo "$deleted_files"
+            fi
+
             echo ""
-            echo "Modified files:"
-            echo "$modified_files"
-          fi
-
-          # Display deleted files
-          if [[ -n "$deleted_files" ]]; then
+            echo "To revert these changes to their state in the base branch, you can run the following commands:"
             echo ""
-            echo "Deleted files:"
-            echo "$deleted_files"
+
+            # Commands for added files
+            if [[ -n "$added_files" ]]; then
+              for file in $added_files; do
+                echo "git rm --cached $file"
+              done
+            fi
+
+            # Commands for modified files
+            if [[ -n "$modified_files" ]]; then
+              for file in $modified_files; do
+                echo "git checkout origin/${{ github.base_ref }} -- $file"
+              done
+            fi
+
+            # Commands for deleted files
+            if [[ -n "$deleted_files" ]]; then
+              for file in $deleted_files; do
+                echo "git restore --source=origin/${{ github.base_ref }} --staged --worktree $file"
+              done
+            fi
+
+            echo ""
+            echo "To create a new branch with only the src/ directory changes from this branch, you can run the following commands:"
+            echo ""
+            echo "git checkout -b <new-branch-name> origin/${{ github.base_ref }}"
+            echo "git checkout ${{ github.head_ref }} -- $(echo $added_files $modified_files | tr '\n' ' ')"
+            echo "git restore --source=${{ github.head_ref }} --staged --worktree $(echo $deleted_files | tr '\n' ' ')"
+            echo ""
+            echo "Please ensure this complies with branch naming policies."
+            exit 1
+          else
+            echo "Branch name starts with an allowed prefix ($branch_name). src/ changes are permitted."
           fi
-
-          echo ""
-          echo "To revert these changes to their state in the base branch, you can run the following commands:"
-          echo ""
-
-          # Commands for added files
-          if [[ -n "$added_files" ]]; then
-            for file in $added_files; do
-              echo "git rm --cached $file"
-            done
-          fi
-
-          # Commands for modified files
-          if [[ -n "$modified_files" ]]; then
-            for file in $modified_files; do
-              echo "git checkout origin/${{ github.base_ref }} -- $file"
-            done
-          fi
-
-          # Commands for deleted files
-          if [[ -n "$deleted_files" ]]; then
-            for file in $deleted_files; do
-              echo "git restore --source=origin/${{ github.base_ref }} --staged --worktree $file"
-            done
-          fi
-
-          echo ""
-          echo "To create a new branch with only the src/ directory changes from this branch, you can run the following commands:"
-          echo ""
-          echo "git checkout -b <new-branch-name> origin/${{ github.base_ref }}"
-          echo "git checkout ${{ github.head_ref }} -- $(echo $added_files $modified_files | tr '\n' ' ')"
-          echo "git restore --source=${{ github.head_ref }} --staged --worktree $(echo $deleted_files | tr '\n' ' ')"
-          echo ""
-          echo "Please ensure this complies with branch naming policies."
-          exit 1

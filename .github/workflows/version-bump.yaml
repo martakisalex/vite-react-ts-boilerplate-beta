@@ -1,11 +1,11 @@
-name: Auto Version Check and Bump on PR
+name: Auto Version Validation and Bump
 
 on:
   pull_request:
     types: [opened, synchronize]
 
 jobs:
-  version-check-and-bump:
+  validate-and-bump-version:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the PR branch

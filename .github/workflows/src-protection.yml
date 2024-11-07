@@ -41,9 +41,12 @@ jobs:
           echo "Comparing changes with base branch: $BASE_REF"
           
           # Check for changes in the src directory
-          if git diff --name-only "$BASE_REF"...HEAD | grep '^src/'; then
-            echo "Changes found in src/ directory"
+          changed_files=$(git diff --name-only "$BASE_REF"...HEAD | grep '^src/')
+          if [[ -n "$changed_files" ]]; then
+            echo "Changes found in src/ directory:"
+            echo "$changed_files"
             echo "src_changes=true" >> $GITHUB_ENV
+            echo "changed_files=$changed_files" >> $GITHUB_ENV
           else
             echo "No changes in src/ directory"
             echo "src_changes=false" >> $GITHUB_ENV
@@ -52,5 +55,7 @@ jobs:
       - name: Fail if src/ has changes
         if: env.src_changes == 'true'
         run: |
-          echo "This pull request includes changes in the src/ directory. Please ensure this complies with branch naming policies."
+          echo "This pull request includes changes in the src/ directory. The following files have been modified:"
+          echo "${{ env.changed_files }}"
+          echo "Please ensure this complies with branch naming policies."
           exit 1

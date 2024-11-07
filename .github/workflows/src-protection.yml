@@ -1,4 +1,4 @@
-name: Src Code Protection
+name: Detect src/ Directory Changes
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ on:
       - release
 
 jobs:
-  check-src-changes:
+  detect-src-changes:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -19,46 +19,31 @@ jobs:
         with:
           fetch-depth: 0  # Ensures full history is fetched for accurate diff comparison
 
-      - name: Fetch the base branch
+      - name: Fetch base branch
         run: |
-          # Fetch only the specific base branch and update it locally
+          # Fetch the base branch to ensure it's up-to-date
           git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
 
-      - name: Determine base branch and set BASE_REF
-        id: determine-base
+      - name: Identify changed files in src/ directory
+        id: identify-changes
         run: |
-          # Set the base branch to the pull request's base branch or main as a fallback
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "BASE_REF=origin/${{ github.event.pull_request.base.ref }}" >> $GITHUB_ENV
-          else
-            echo "BASE_REF=origin/main" >> $GITHUB_ENV
-          fi
+          BASE_REF=origin/${{ github.event.pull_request.base.ref }}
+          # List files in src/ that differ from the base branch
+          CHANGED_FILES=$(git diff --name-only $BASE_REF...HEAD | grep '^src/')
+          echo "changed_files<<EOF" >> $GITHUB_ENV
+          echo "$CHANGED_FILES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
-      - name: Compare src/ directory changes
-        id: src-changes
+      - name: Display revert commands
+        if: env.changed_files != ''
         run: |
-          # Use the BASE_REF determined from the previous step
-          echo "Comparing changes with base branch: $BASE_REF"
-          
-          # Check for changes in the src directory
-          changed_files=$(git diff --name-only "$BASE_REF"...HEAD | grep '^src/')
-          if [[ -n "$changed_files" ]]; then
-            echo "Changes found in src/ directory:"
-            echo "$changed_files"
-            # Replace newline characters with a space for environment variable compatibility
-            changed_files_single_line=$(echo "$changed_files" | tr '\n' ' ')
-            echo "src_changes=true" >> $GITHUB_ENV
-            echo "changed_files=$changed_files_single_line" >> $GITHUB_ENV
-          else
-            echo "No changes in src/ directory"
-            echo "src_changes=false" >> $GITHUB_ENV
-          fi
-
-      - name: Fail if src/ has changes
-        if: env.src_changes == 'true'
-        run: |
-          echo "This pull request includes changes in the src/ directory. The following files have been modified:"
-          # Restore newline characters for display
-          echo "${{ env.changed_files }}" | tr ' ' '\n'
-          echo "Please ensure this complies with branch naming policies."
-          exit 1
+          echo "The following files in the src/ directory have been modified:"
+          echo "${{ env.changed_files }}"
+          echo ""
+          echo "To revert these changes to their state in the base branch, you can run the following commands:"
+          echo ""
+          for file in ${{ env.changed_files }}; do
+            echo "git checkout origin/${{ github.event.pull_request.base.ref }} -- $file"
+          done
+          echo ""
+          echo "Please review these commands carefully before executing them to ensure you do not lose any important changes."

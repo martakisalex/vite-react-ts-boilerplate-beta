@@ -44,6 +44,8 @@ jobs:
 
           # Check if any source files in src/ were changed by comparing FETCH_HEAD (base branch) with GITHUB_SHA
           src_files_changed=$(git diff --name-only FETCH_HEAD $GITHUB_SHA | grep -E '^src/')
+          echo "Debug: Detected src/ files changed -> $src_files_changed"  # Debugging output to see detected changes
+
           if [[ -n "$src_files_changed" && "$is_valid_prefix" == false ]]; then
             # If there are src/ changes and the branch prefix is invalid, prepare revert commands
             echo "Error: Modifications to src/ are only allowed on branches with prefixes: ${valid_prefixes[*]}."

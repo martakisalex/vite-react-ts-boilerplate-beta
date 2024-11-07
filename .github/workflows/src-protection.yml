@@ -70,24 +70,59 @@ jobs:
       - name: Display revert commands if src/ has changes
         if: env.src_changes == 'true'
         run: |
-          echo "This pull request includes changes in the src/ directory. The following files have been modified:"
-          # Restore newline characters for display
-          echo "${{ env.all_changed_files }}" | tr ' ' '\n'
+          echo "This pull request includes changes in the src/ directory."
+          
+          # Display added files
+          if [[ -n "${{ env.added_files }}" ]]; then
+            echo ""
+            echo "Added files:"
+            echo "${{ env.added_files }}" | tr ' ' '\n'
+          fi
+          
+          # Display modified files
+          if [[ -n "${{ env.modified_files }}" ]]; then
+            echo ""
+            echo "Modified files:"
+            echo "${{ env.modified_files }}" | tr ' ' '\n'
+          fi
+          
+          # Display deleted files
+          if [[ -n "${{ env.deleted_files }}" ]]; then
+            echo ""
+            echo "Deleted files:"
+            echo "${{ env.deleted_files }}" | tr ' ' '\n'
+          fi
+          
           echo ""
           echo "To revert these changes to their state in the base branch, you can run the following commands:"
           echo ""
+          
           # Commands for added files
-          for file in ${{ env.added_files }}; do
-            echo "git rm --cached $file"
-          done
+          if [[ -n "${{ env.added_files }}" ]]; then
+            echo "# Revert added files:"
+            for file in ${{ env.added_files }}; do
+              echo "git rm --cached $file"
+            done
+            echo ""
+          fi
+          
           # Commands for modified files
-          for file in ${{ env.modified_files }}; do
-            echo "git checkout ${{ env.BASE_REF }} -- $file"
-          done
+          if [[ -n "${{ env.modified_files }}" ]]; then
+            echo "# Revert modified files:"
+            for file in ${{ env.modified_files }}; do
+              echo "git checkout ${{ env.BASE_REF }} -- $file"
+            done
+            echo ""
+          fi
+          
           # Commands for deleted files
-          for file in ${{ env.deleted_files }}; do
-            echo "git checkout ${{ env.BASE_REF }} -- $file"
-          done
-          echo ""
+          if [[ -n "${{ env.deleted_files }}" ]]; then
+            echo "# Restore deleted files:"
+            for file in ${{ env.deleted_files }}; do
+              echo "git checkout ${{ env.BASE_REF }} -- $file"
+            done
+            echo ""
+          fi
+          
           echo "Please ensure this complies with branch naming policies."
           exit 1

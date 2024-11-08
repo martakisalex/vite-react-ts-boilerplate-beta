@@ -96,14 +96,17 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Perform version bump with npm
+      - name: Perform version bump with npm and check package-lock.json
         if: ${{ env.bump_type != '' }}
         run: |
           git checkout ${{ github.head_ref }}
+          old_version=$(jq -r .version package.json)
           npm version ${{ env.bump_type }} --no-git-tag-version
           new_version=$(jq -r .version package.json)
-          git add package.json
-          git commit -m "chore: bump version to $new_version"
+          
+          # Ensure package-lock.json is also updated and committed
+          git add package.json package-lock.json
+          git commit -m "chore: bump version from $old_version to $new_version"
 
       - name: Push version bump commit
         if: ${{ env.bump_type != '' }}

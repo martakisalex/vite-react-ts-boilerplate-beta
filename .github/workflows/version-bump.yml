@@ -3,6 +3,8 @@ name: Auto Version Validation and Bump
 on:
   pull_request:
     types: [opened, synchronize]
+  pull_request_target:
+    types: [labeled, unlabeled]
 
 jobs:
   validate-and-bump-version:

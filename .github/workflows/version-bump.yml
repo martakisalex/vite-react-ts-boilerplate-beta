@@ -110,14 +110,14 @@ jobs:
         run: npm install
 
       - name: Bump version with custom commit message
-        if: env.expected_version != env.develop_version
+        if: env.expected_version != env.develop_version && github.event.action != 'labeled' && github.event.action != 'unlabeled'
         run: |
           npm version "${{ env.version_type }}" -m "chore: bump version to %s for PR"
           new_version=$(jq -r .version package.json)
           echo "New version is $new_version"
       
       - name: Push version bump commit
-        if: env.expected_version != env.develop_version
+        if: env.expected_version != env.develop_version && github.event.action != 'labeled' && github.event.action != 'unlabeled'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

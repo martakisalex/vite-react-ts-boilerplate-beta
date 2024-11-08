@@ -89,6 +89,24 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Revert previous version bump commits if any
+        run: |
+          git checkout ${{ github.head_ref }}
+          # Find commits with messages indicating a version bump
+          bump_commits=$(git log --grep='^chore: bump version from' --pretty=format:'%H')
+          if [ -n "$bump_commits" ]; then
+            echo "Found previous version bump commits:"
+            echo "$bump_commits"
+            # Revert each bump commit
+            for commit in $bump_commits; do
+              git revert --no-edit $commit || exit 1
+            done
+            # Push the revert commits
+            git push origin HEAD:${{ github.head_ref }}
+          else
+            echo "No previous version bump commits found."
+          fi
+
       - name: Bump version with custom commit message
         if: ${{ env.bump_type != '' }}
         run: |

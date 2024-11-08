@@ -9,26 +9,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the PR branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-
-      - name: Fetch develop branch
-        run: git fetch origin develop:develop
 
       - name: Set up Git user
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Get current version from develop
-        id: get_develop_version
-        run: |
-          git checkout develop
-          develop_version=$(jq -r .version package.json)
-          echo "develop_version=$develop_version" >> $GITHUB_ENV
-          echo "Current version on develop: $develop_version"
 
       - name: Determine if branch name is valid
         id: validate_branch
@@ -36,60 +25,67 @@ jobs:
           branch_name="${{ github.head_ref }}"
           if [[ "$branch_name" =~ ^(feat|fix|hotfix|style|refactor|perf|test)/ ]]; then
             echo "Branch name is valid."
+            echo "branch_valid=true" >> $GITHUB_ENV
           else
-            echo "Invalid branch name: $branch_name. Branch must start with one of feat/, fix/, hotfix/, style/, refactor/, perf/, or test/."
-            exit 1
-          fi
+            echo "Branch name does not require a version label."
+            echo "branch_valid=false" >> $GITHUB_ENV
 
       - name: Verify PR label for version bump
         id: check_label
         run: |
-          pr_number=${{ github.event.pull_request.number }}
-          repo_full_name=${{ github.repository }}
-          labels=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/$repo_full_name/issues/$pr_number/labels")
+          if [[ "$branch_valid" == "true" ]]; then
+            pr_number=${{ github.event.pull_request.number }}
+            repo_full_name=${{ github.repository }}
+            labels=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/$repo_full_name/issues/$pr_number/labels")
 
-          echo "Labels response: $labels"
+            echo "Labels response: $labels"
 
-          if echo "$labels" | jq empty; then
-            label_names=$(echo "$labels" | jq -r '.[].name')
-            version_labels=()
-            while IFS= read -r label; do
-              if [[ "$label" =~ ^version:\ (major|minor|patch)$ ]]; then
-                version_labels+=("$label")
+            if echo "$labels" | jq empty; then
+              label_names=$(echo "$labels" | jq -r '.[].name')
+              version_labels=()
+              while IFS= read -r label; do
+                if [[ "$label" =~ ^version:\ (major|minor|patch)$ ]]; then
+                  version_labels+=("$label")
+                fi
+              done <<< "$label_names"
+
+              if [ ${#version_labels[@]} -eq 0 ]; then
+                echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
+                exit 1
+              elif [ ${#version_labels[@]} -gt 1 ]; then
+                echo "Multiple version labels found: ${version_labels[@]}. Please ensure only one version label is applied."
+                exit 1
+              else
+                case "${version_labels[0]}" in
+                  "version: major")
+                    bump_type="major"
+                    ;;
+                  "version: minor")
+                    bump_type="minor"
+                    ;;
+                  "version: patch")
+                    bump_type="patch"
+                    ;;
+                esac
+                echo "bump_type=$bump_type" >> $GITHUB_ENV
               fi
-            done <<< "$label_names"
-
-            if [ ${#version_labels[@]} -eq 0 ]; then
-              echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
-              exit 1
-            elif [ ${#version_labels[@]} -gt 1 ]; then
-              echo "Multiple version labels found: ${version_labels[@]}. Please ensure only one version label is applied."
-              exit 1
             else
-              case "${version_labels[0]}" in
-                "version: major")
-                  bump_type="major"
-                  ;;
-                "version: minor")
-                  bump_type="minor"
-                  ;;
-                "version: patch")
-                  bump_type="patch"
-                  ;;
-              esac
-              echo "bump_type=$bump_type" >> $GITHUB_ENV
+              echo "Failed to fetch labels or invalid JSON response."
+              exit 1
             fi
           else
-            echo "Failed to fetch labels or invalid JSON response."
-            exit 1
+            echo "Branch does not require a version bump."
+            echo "bump_type=" >> $GITHUB_ENV
           fi
 
       - name: Install dependencies
+        if: ${{ env.bump_type != '' }}
         run: npm install
 
       - name: Revert previous version bump commits if any
+        if: ${{ env.bump_type != '' }}
         run: |
           git checkout ${{ github.head_ref }}
           bump_commits=$(git log --grep='^chore: bump version from' --pretty=format:'%H')
@@ -97,16 +93,21 @@ jobs:
             echo "Found previous version bump commits:"
             echo "$bump_commits"
             for commit in $bump_commits; do
-              git revert --no-edit $commit || {
-                echo "Conflict detected during revert of commit $commit. Attempting to resolve..."
-                # Abort the current revert operation
-                git revert --abort
-                # Resolve conflict by resetting package.json to the state before the bump
-                git checkout HEAD -- package.json
-                git add package.json
-                # Reapply the revert
-                git revert --no-edit $commit || exit 1
-              }
+              # Check if the commit has already been reverted
+              if git log --grep="This reverts commit $commit" --oneline | grep -q "$commit"; then
+                echo "Commit $commit has already been reverted."
+              else
+                git revert --no-edit $commit || {
+                  echo "Conflict detected during revert of commit $commit. Attempting to resolve..."
+                  # Abort the current revert operation
+                  git revert --abort
+                  # Resolve conflict by resetting package.json to the state before the bump
+                  git checkout HEAD -- package.json
+                  git add package.json
+                  # Reapply the revert
+                  git revert --no-edit $commit || exit 1
+                }
+              fi
             done
             git push origin HEAD:${{ github.head_ref }}
           else

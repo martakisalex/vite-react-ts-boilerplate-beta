@@ -2,9 +2,7 @@ name: Auto Version Check and Bump on PR
 
 on:
   pull_request:
-    types: [opened, synchronize]
-  pull_request_target:
-    types: [labeled, unlabeled]
+    types: [opened, synchronize, labeled, unlabeled]
 
 jobs:
   version_check_and_bump:
@@ -58,7 +56,7 @@ jobs:
           fi
 
       - name: Revert changes in package.json if label changed
-        if: github.event_name == 'pull_request_target'
+        if: github.event.action == 'labeled' || github.event.action == 'unlabeled'
         run: |
           git checkout -- package.json
 

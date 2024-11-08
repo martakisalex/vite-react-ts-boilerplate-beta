@@ -30,22 +30,35 @@ jobs:
           echo "develop_version=$develop_version" >> $GITHUB_ENV
           echo "Current version on develop: $develop_version"
         
-      - name: Determine expected version based on branch type
-        id: determine_version
+      - name: Determine if branch name is valid
+        id: validate_branch
         run: |
           branch_name="${{ github.head_ref }}"
-          current_version="${{ env.develop_version }}"
-
-          if [[ "$branch_name" == major/* ]]; then
-            bump_type="major"
-          elif [[ "$branch_name" == feat/* ]]; then
-            bump_type="minor"
-          elif [[ "$branch_name" == fix/* ]]; then
-            bump_type="patch"
+          if [[ "$branch_name" =~ ^(feat|fix|hotfix|style|refactor|perf|test)/ ]]; then
+            echo "Branch name is valid."
           else
-            bump_type=""
+            echo "Invalid branch name: $branch_name. Branch must start with one of feat/, fix/, hotfix/, style/, refactor/, perf/, or test/."
+            exit 1
           fi
 
+      - name: Verify PR label for version bump
+        id: check_label
+        run: |
+          labels=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "${{ github.event.pull_request.url }}/labels" | jq -r '.[].name')
+          
+          if [[ "$labels" =~ "version: major" ]]; then
+            bump_type="major"
+          elif [[ "$labels" =~ "version: minor" ]]; then
+            bump_type="minor"
+          elif [[ "$labels" =~ "version: patch" ]]; then
+            bump_type="patch"
+          else
+            echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
+            exit 1
+          fi
+          
           echo "bump_type=$bump_type" >> $GITHUB_ENV
 
       - name: Install dependencies

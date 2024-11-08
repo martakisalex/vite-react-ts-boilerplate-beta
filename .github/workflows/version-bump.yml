@@ -89,6 +89,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Revert version bump if label changed
+        if: ${{ env.bump_type != '' }}
+        run: |
+          git checkout ${{ github.head_ref }}
+          current_version=$(jq -r .version package.json)
+          if [ "$current_version" != "$develop_version" ]; then
+            echo "Version in package.json ($current_version) differs from develop branch ($develop_version). Reverting to develop version."
+            echo "$develop_version" | jq -R '{version: .}' > package.json
+            git add package.json
+            git commit -m "chore: revert version to match develop branch"
+          else
+            echo "Version in package.json matches develop branch. No revert needed."
+          fi
+
       - name: Bump version with custom commit message
         if: ${{ env.bump_type != '' }}
         run: |

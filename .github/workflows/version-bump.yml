@@ -109,8 +109,9 @@ jobs:
           git checkout ${{ github.head_ref }}
           old_version=$(jq -r .version package.json)
           npm version ${{ env.bump_type }} --no-git-tag-version
+          npm install  # Regenerates package-lock.json with the updated version
           new_version=$(jq -r .version package.json)
-          git add package.json
+          git add package.json package-lock.json
           git commit -m "chore: bump version from $old_version to $new_version"
 
       - name: Push version bump commit

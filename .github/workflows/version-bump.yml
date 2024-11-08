@@ -85,8 +85,10 @@ jobs:
             echo "Updating package.json to expected version ${{ env.expected_version }}"
             # Update version in package.json
             jq ".version = \"${{ env.expected_version }}\"" package.json > package.tmp && mv package.tmp package.json
+            echo "::set-output name=changed::true"
           else
             echo "package.json version is already correct."
+            echo "::set-output name=changed::false"
           fi
 
       - name: Commit and push version bump if updated

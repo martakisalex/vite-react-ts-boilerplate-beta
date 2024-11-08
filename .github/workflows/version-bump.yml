@@ -116,6 +116,7 @@ jobs:
       - name: Push version bump commit
         if: ${{ env.bump_type != '' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
+          git remote set-url origin https://x-access-token:${PERSONAL_ACCESS_TOKEN}@github.com/${{ github.repository }}
           git push origin HEAD:${{ github.head_ref }}

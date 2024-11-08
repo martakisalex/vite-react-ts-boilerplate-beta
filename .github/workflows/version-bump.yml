@@ -33,24 +33,26 @@ jobs:
       - name: Determine expected version based on branch type
         id: determine_version
         run: |
-          # Extract the branch type (major, minor, patch, etc.)
           branch_name="${{ github.head_ref }}"
           current_version="${{ env.develop_version }}"
 
-          # Determine next expected version based on branch naming convention
           if [[ "$branch_name" == major/* ]]; then
             expected_version=$(echo "$current_version" | awk -F. '{print $1+1 ".0.0"}')
-          elif [[ "$branch_name" == feat/* ]]; then
+            bump_type="major"
+          elif [[ "$branch_name" == minor/* ]]; then
             expected_version=$(echo "$current_version" | awk -F. '{print $1 "." $2+1 ".0"}')
+            bump_type="minor"
           elif [[ "$branch_name" == patch/* ]]; then
             expected_version=$(echo "$current_version" | awk -F. '{print $1 "." $2 "." $3+1}')
+            bump_type="patch"
           else
-            # For branches like docs/... or ci/... expect no version change
             expected_version="$current_version"
+            bump_type=""
           fi
 
           echo "Expected version based on branch: $expected_version"
           echo "expected_version=$expected_version" >> $GITHUB_ENV
+          echo "bump_type=$bump_type" >> $GITHUB_ENV
 
       - name: Check version in package.json matches expected version
         id: check_version
@@ -61,19 +63,19 @@ jobs:
             echo "Error: package.json version is $current_version but expected ${{ env.expected_version }}."
             exit 1
           fi
-          
+
       - name: Install dependencies
         run: npm install
 
       - name: Bump version with custom commit message
-        if: env.expected_version != env.develop_version
+        if: ${{ env.bump_type != '' }}
         run: |
-          npm version "${{ github.head_ref }}" -m "chore: bump version to %s for PR"
+          npm version ${{ env.bump_type }} -m "chore: bump version to %s for PR"
           new_version=$(jq -r .version package.json)
           echo "New version is $new_version"
       
       - name: Push version bump commit
-        if: env.expected_version != env.develop_version
+        if: ${{ env.bump_type != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

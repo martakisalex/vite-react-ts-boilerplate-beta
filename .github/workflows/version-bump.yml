@@ -12,7 +12,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: ${{ github.head_ref }}
-          fetch-depth: 0  # Ensures the full history is fetched for accurate diffing
+          fetch-depth: 0
 
       - name: Fetch develop branch
         run: git fetch origin develop:develop
@@ -92,16 +92,19 @@ jobs:
       - name: Revert previous version bump commits if any
         run: |
           git checkout ${{ github.head_ref }}
-          # Find commits with messages indicating a version bump
           bump_commits=$(git log --grep='^chore: bump version from' --pretty=format:'%H')
           if [ -n "$bump_commits" ]; then
             echo "Found previous version bump commits:"
             echo "$bump_commits"
-            # Revert each bump commit
             for commit in $bump_commits; do
-              git revert --no-edit $commit || exit 1
+              git revert --no-edit $commit || {
+                echo "Conflict detected during revert of commit $commit. Attempting to resolve..."
+                # Resolve conflict by resetting package.json to the state before the bump
+                git checkout HEAD -- package.json
+                git add package.json
+                git revert --continue || exit 1
+              }
             done
-            # Push the revert commits
             git push origin HEAD:${{ github.head_ref }}
           else
             echo "No previous version bump commits found."

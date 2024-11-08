@@ -3,6 +3,8 @@ name: Auto Version Check and Bump on PR
 on:
   pull_request:
     types: [opened, synchronize]
+  pull_request_target:
+    types: [labeled, unlabeled]
 
 jobs:
   version_check_and_bump:
@@ -29,27 +31,65 @@ jobs:
           develop_version=$(jq -r .version package.json)
           echo "develop_version=$develop_version" >> $GITHUB_ENV
           echo "Current version on develop: $develop_version"
-        
-      - name: Determine expected version based on branch type
-        id: determine_version
-        run: |
-          # Extract the branch type (major, minor, fix, etc.)
-          branch_name="${{ github.head_ref }}"
-          current_version="${{ env.develop_version }}"
 
-          # Determine next expected version based on branch naming convention
-          if [[ "$branch_name" == major/* ]]; then
-            expected_version=$(echo "$current_version" | awk -F. '{print $1+1 ".0.0"}')
-          elif [[ "$branch_name" == minor/* ]]; then
-            expected_version=$(echo "$current_version" | awk -F. '{print $1 "." $2+1 ".0"}')
-          elif [[ "$branch_name" == fix/* ]]; then
-            expected_version=$(echo "$current_version" | awk -F. '{print $1 "." $2 "." $3+1}')
-          else
-            # For branches like docs/... or ci/... expect no version change
-            expected_version="$current_version"
+      - name: Ensure package.json has not been manually modified
+        id: check_package_json_edit
+        run: |
+          if git diff --name-only origin/develop...HEAD | grep -q '^package.json$'; then
+            echo "Error: package.json has been manually edited."
+            exit 1
           fi
 
-          echo "Expected version based on branch: $expected_version"
+      - name: Check branch type and version bump label requirement
+        id: check_branch_type_and_label
+        run: |
+          branch_name="${{ github.head_ref }}"
+          pr_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
+
+          if [[ "$branch_name" =~ ^(release/|fix/|feat/|major/|hotfix/|test/|refactor/|style/) ]]; then
+            if ! echo "$pr_labels" | grep -q -E 'version: major|version: minor|version: patch'; then
+              echo "Error: Branch type '$branch_name' requires a version bump label (version: major, version: minor, or version: patch). Please add one of these labels."
+              exit 1
+            fi
+          fi
+
+      - name: Revert changes in package.json if label changed
+        if: github.event_name == 'pull_request_target'
+        run: |
+          git checkout -- package.json
+
+      - name: Check for version bump label
+        id: check_label
+        run: |
+          pr_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
+          if echo "$pr_labels" | grep -q 'version: major'; then
+            version_type="major"
+          elif echo "$pr_labels" | grep -q 'version: minor'; then
+            version_type="minor"
+          elif echo "$pr_labels" | grep -q 'version: patch'; then
+            version_type="patch"
+          else
+            echo "Error: No version bump label found. Please add one of the following labels: version: major, version: minor, or version: patch."
+            exit 1
+          fi
+          echo "version_type=$version_type" >> $GITHUB_ENV
+
+      - name: Determine expected version based on label
+        id: determine_version
+        run: |
+          current_version="${{ env.develop_version }}"
+          case "${{ env.version_type }}" in
+            major)
+              expected_version=$(echo "$current_version" | awk -F. '{print $1+1 ".0.0"}')
+              ;;
+            minor)
+              expected_version=$(echo "$current_version" | awk -F. '{print $1 "." $2+1 ".0"}')
+              ;;
+            patch)
+              expected_version=$(echo "$current_version" | awk -F. '{print $1 "." $2 "." $3+1}')
+              ;;
+          esac
+          echo "Expected version based on label: $expected_version"
           echo "expected_version=$expected_version" >> $GITHUB_ENV
 
       - name: Check version in package.json matches expected version
@@ -68,7 +108,7 @@ jobs:
       - name: Bump version with custom commit message
         if: env.expected_version != env.develop_version
         run: |
-          npm version "${{ github.head_ref }}" -m "chore: bump version to %s for PR"
+          npm version "${{ env.version_type }}" -m "chore: bump version to %s for PR"
           new_version=$(jq -r .version package.json)
           echo "New version is $new_version"
       

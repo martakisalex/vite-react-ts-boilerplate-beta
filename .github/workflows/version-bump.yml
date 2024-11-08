@@ -44,22 +44,34 @@ jobs:
       - name: Verify PR label for version bump
         id: check_label
         run: |
+          # Fetch labels and check the response
           labels=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          "${{ github.event.pull_request.url }}/labels" | jq -r '.[].name')
+            -H "Accept: application/vnd.github.v3+json" \
+            "${{ github.event.pull_request.url }}/labels")
           
-          if [[ "$labels" =~ "version: major" ]]; then
-            bump_type="major"
-          elif [[ "$labels" =~ "version: minor" ]]; then
-            bump_type="minor"
-          elif [[ "$labels" =~ "version: patch" ]]; then
-            bump_type="patch"
+          # Print the labels response for debugging
+          echo "Labels response: $labels"
+          
+          # Ensure the response is valid JSON
+          if echo "$labels" | jq empty; then
+            label_names=$(echo "$labels" | jq -r '.[].name')
+            
+            if [[ "$label_names" =~ "version: major" ]]; then
+              bump_type="major"
+            elif [[ "$label_names" =~ "version: minor" ]]; then
+              bump_type="minor"
+            elif [[ "$label_names" =~ "version: patch" ]]; then
+              bump_type="patch"
+            else
+              echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
+              exit 1
+            fi
+            
+            echo "bump_type=$bump_type" >> $GITHUB_ENV
           else
-            echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
+            echo "Failed to fetch labels or invalid JSON response."
             exit 1
           fi
-          
-          echo "bump_type=$bump_type" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: npm install

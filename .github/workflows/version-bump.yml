@@ -37,32 +37,16 @@ jobs:
           current_version="${{ env.develop_version }}"
 
           if [[ "$branch_name" == major/* ]]; then
-            expected_version=$(echo "$current_version" | awk -F. '{print $1+1 ".0.0"}')
             bump_type="major"
           elif [[ "$branch_name" == feat/* ]]; then
-            expected_version=$(echo "$current_version" | awk -F. '{print $1 "." $2+1 ".0"}')
             bump_type="minor"
           elif [[ "$branch_name" == fix/* ]]; then
-            expected_version=$(echo "$current_version" | awk -F. '{print $1 "." $2 "." $3+1}')
             bump_type="patch"
           else
-            expected_version="$current_version"
             bump_type=""
           fi
 
-          echo "Expected version based on branch: $expected_version"
-          echo "expected_version=$expected_version" >> $GITHUB_ENV
           echo "bump_type=$bump_type" >> $GITHUB_ENV
-
-      - name: Check version in package.json matches expected version
-        id: check_version
-        run: |
-          current_version=$(jq -r .version package.json)
-          echo "Version in package.json: $current_version"
-          if [ "$current_version" != "${{ env.expected_version }}" ]; then
-            echo "Error: package.json version is $current_version but expected ${{ env.expected_version }}."
-            exit 1
-          fi
 
       - name: Install dependencies
         run: npm install
@@ -70,13 +54,14 @@ jobs:
       - name: Bump version with custom commit message
         if: ${{ env.bump_type != '' }}
         run: |
+          git checkout ${{ github.head_ref }}
           npm version ${{ env.bump_type }} -m "chore: bump version to %s for PR"
           new_version=$(jq -r .version package.json)
           echo "New version is $new_version"
-      
+        
       - name: Push version bump commit
         if: ${{ env.bump_type != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git push origin HEAD:${{ github.head_ref }} --force
+          git push origin HEAD:${{ github.head_ref }}

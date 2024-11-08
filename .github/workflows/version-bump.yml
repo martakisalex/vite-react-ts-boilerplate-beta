@@ -29,7 +29,7 @@ jobs:
           develop_version=$(jq -r .version package.json)
           echo "develop_version=$develop_version" >> $GITHUB_ENV
           echo "Current version on develop: $develop_version"
-        
+
       - name: Determine if branch name is valid
         id: validate_branch
         run: |
@@ -44,18 +44,16 @@ jobs:
       - name: Verify PR label for version bump
         id: check_label
         run: |
-          # Fetch labels and check the response
+          pr_number=${{ github.event.pull_request.number }}
+          repo_full_name=${{ github.repository }}
           labels=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            "${{ github.event.pull_request.url }}/labels")
-          
-          # Print the labels response for debugging
+            "https://api.github.com/repos/$repo_full_name/issues/$pr_number/labels")
+
           echo "Labels response: $labels"
-          
-          # Ensure the response is valid JSON
+
           if echo "$labels" | jq empty; then
-            label_names=$(echo "$labels" | jq -r '.[].name')
-            
+            label_names=$(echo "$labels" | jq -r '.[].name' | tr '\n' ' ')
             if [[ "$label_names" =~ "version: major" ]]; then
               bump_type="major"
             elif [[ "$label_names" =~ "version: minor" ]]; then
@@ -66,7 +64,6 @@ jobs:
               echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
               exit 1
             fi
-            
             echo "bump_type=$bump_type" >> $GITHUB_ENV
           else
             echo "Failed to fetch labels or invalid JSON response."
@@ -83,7 +80,7 @@ jobs:
           npm version ${{ env.bump_type }} -m "chore: bump version to %s for PR"
           new_version=$(jq -r .version package.json)
           echo "New version is $new_version"
-        
+
       - name: Push version bump commit
         if: ${{ env.bump_type != '' }}
         env:

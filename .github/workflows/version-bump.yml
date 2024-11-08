@@ -53,13 +53,13 @@ jobs:
           echo "Labels response: $labels"
 
           if echo "$labels" | jq empty; then
-            label_names=$(echo "$labels" | jq -r '.[].name' | tr '\n' ' ')
+            label_names=$(echo "$labels" | jq -r '.[].name')
             version_labels=()
-            for label in $label_names; do
+            while IFS= read -r label; do
               if [[ "$label" =~ ^version:\ (major|minor|patch)$ ]]; then
                 version_labels+=("$label")
               fi
-            done
+            done <<< "$label_names"
 
             if [ ${#version_labels[@]} -eq 0 ]; then
               echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."

@@ -1,100 +1,135 @@
-name: Source Code Protection
+name: Auto Version Validation and Bump
 
 on:
   pull_request:
-    branches:
-      - develop
-      - release
-      - main
-  push:
-    branches:
-      - release
+    types: [opened, synchronize, labeled, unlabeled]
 
 jobs:
-  check-src-changes:
+  validate-and-bump-version:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Check out the PR branch
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Ensures full history is fetched for accurate diff comparison
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
 
-      - name: Determine src/ directory changes
-        id: src-changes
-        uses: dorny/paths-filter@v2
-        with:
-          filters: |
-            src:
-              - 'src/**'
-
-      - name: Verify branch naming and src/ changes
-        if: steps.src-changes.outputs.src == 'true'
+      - name: Set up Git user
         run: |
-          # Get the branch name
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine if branch name is valid
+        id: validate_branch
+        run: |
           branch_name="${{ github.head_ref }}"
-
-          # Check if branch name starts with allowed prefixes
-          if [[ ! "$branch_name" =~ ^(feat/|fix/|style/|refactor/|perf/|test/).* ]]; then
-            echo "Changes in src/ directory are not allowed on this branch ($branch_name)."
-            echo ""
-            
-            # Identify added, modified, and deleted files
-            added_files=$(git diff --diff-filter=A --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
-            modified_files=$(git diff --diff-filter=M --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
-            deleted_files=$(git diff --diff-filter=D --name-only origin/${{ github.base_ref }}...HEAD | grep '^src/' || true)
-
-            # Display added files
-            if [[ -n "$added_files" ]]; then
-              echo "Added files:"
-              echo "$added_files"
-            fi
-
-            # Display modified files
-            if [[ -n "$modified_files" ]]; then
-              echo "Modified files:"
-              echo "$modified_files"
-            fi
-
-            # Display deleted files
-            if [[ -n "$deleted_files" ]]; then
-              echo "Deleted files:"
-              echo "$deleted_files"
-            fi
-
-            echo ""
-            echo "To revert these changes to their state in the base branch, you can run the following commands:"
-            echo ""
-
-            # Commands for added files
-            if [[ -n "$added_files" ]]; then
-              for file in $added_files; do
-                echo "git rm --cached $file"
-              done
-            fi
-
-            # Commands for modified files
-            if [[ -n "$modified_files" ]]; then
-              for file in $modified_files; do
-                echo "git checkout origin/${{ github.base_ref }} -- $file"
-              done
-            fi
-
-            # Commands for deleted files
-            if [[ -n "$deleted_files" ]]; then
-              for file in $deleted_files; do
-                echo "git restore --source=origin/${{ github.base_ref }} --staged --worktree $file"
-              done
-            fi
-
-            echo ""
-            echo "To create a new branch with only the src/ directory changes from this branch, you can run the following commands:"
-            echo ""
-            echo "git checkout -b <new-branch-name> origin/${{ github.base_ref }}"
-            echo "git checkout ${{ github.head_ref }} -- $(echo $added_files $modified_files | tr '\n' ' ')"
-            echo "git restore --source=${{ github.head_ref }} --staged --worktree $(echo $deleted_files | tr '\n' ' ')"
-            echo ""
-            echo "Please ensure this complies with branch naming policies."
-            exit 1
+          if [[ "$branch_name" =~ ^(feat|fix|hotfix|style|refactor|perf|test)/ ]]; then
+            echo "Branch name is valid."
+            echo "branch_valid=true" >> $GITHUB_ENV
           else
-            echo "Branch name starts with an allowed prefix ($branch_name). src/ changes are permitted."
-          fi
+            echo "Branch name does not require a version label."
+            echo "branch_valid=false" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Verify PR label for version bump
+        id: check_label
+        run: |
+          if [[ "$branch_valid" == "true" ]]; then
+            pr_number=${{ github.event.pull_request.number }}
+            repo_full_name=${{ github.repository }}
+            labels=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/$repo_full_name/issues/$pr_number/labels")
+
+            echo "Labels response: $labels"
+
+            if echo "$labels" | jq empty; then
+              label_names=$(echo "$labels" | jq -r '.[].name')
+              version_labels=()
+              while IFS= read -r label; do
+                if [[ "$label" =~ ^version:\ (major|minor|patch)$ ]]; then
+                  version_labels+=("$label")
+                fi
+              done <<< "$label_names"
+
+              if [ ${#version_labels[@]} -eq 0 ]; then
+                echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
+                exit 1
+              elif [ ${#version_labels[@]} -gt 1 ]; then
+                echo "Multiple version labels found: ${version_labels[@]}. Please ensure only one version label is applied."
+                exit 1
+              else
+                case "${version_labels[0]}" in
+                  "version: major")
+                    bump_type="major"
+                    ;;
+                  "version: minor")
+                    bump_type="minor"
+                    ;;
+                  "version: patch")
+                    bump_type="patch"
+                    ;;
+                esac
+                echo "bump_type=$bump_type" >> $GITHUB_ENV
+              fi
+            else
+              echo "Failed to fetch labels or invalid JSON response."
+              exit 1
+            fi
+          else
+            echo "Branch does not require a version bump."
+            echo "bump_type=" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Install dependencies
+        if: ${{ env.bump_type != '' }}
+        run: npm install
+
+      - name: Revert previous version bump commits if any
+        if: ${{ env.bump_type != '' }}
+        run: |
+          git checkout ${{ github.head_ref }}
+          bump_commits=$(git log --grep='^chore: bump version from' --pretty=format:'%H')
+          if [ -n "$bump_commits" ]; then
+            echo "Found previous version bump commits:"
+            echo "$bump_commits"
+            for commit in $bump_commits; do
+              # Check if the commit has already been reverted
+              if git log --grep="This reverts commit $commit" --oneline | grep -q "$commit"; then
+                echo "Commit $commit has already been reverted."
+              else
+                git revert --no-edit $commit || {
+                  echo "Conflict detected during revert of commit $commit. Attempting to resolve..."
+                  # Abort the current revert operation
+                  git revert --abort
+                  # Resolve conflict by resetting package.json to the state before the bump
+                  git checkout HEAD -- package.json
+                  git add package.json
+                  # Reapply the revert
+                  git revert --no-edit $commit || exit 1
+                }
+              fi
+            done
+            git push origin HEAD:${{ github.head_ref }}
+          else
+            echo "No previous version bump commits found."
+        shell: bash
+
+      - name: Bump version with custom commit message
+        if: ${{ env.bump_type != '' }}
+        run: |
+          git checkout ${{ github.head_ref }}
+          old_version=$(jq -r .version package.json)
+          npm version ${{ env.bump_type }} --no-git-tag-version
+          new_version=$(jq -r .version package.json)
+          git add package.json
+          git commit -m "chore: bump version from $old_version to $new_version"
+        shell: bash
+
+      - name: Push version bump commit
+        if: ${{ env.bump_type != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin HEAD:${{ github.head_ref }}
+        shell: bash

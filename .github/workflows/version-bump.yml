@@ -21,6 +21,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Get current version from develop
         id: get_develop_version
         run: |
@@ -28,6 +29,7 @@ jobs:
           develop_version=$(jq -r .version package.json)
           echo "develop_version=$develop_version" >> $GITHUB_ENV
           echo "Current version on develop: $develop_version"
+
       - name: Determine if branch name is valid
         id: validate_branch
         run: |
@@ -38,6 +40,7 @@ jobs:
             echo "Invalid branch name: $branch_name. Branch must start with one of feat/, fix/, hotfix/, style/, refactor/, perf/, or test/."
             exit 1
           fi
+
       - name: Verify PR label for version bump
         id: check_label
         run: |
@@ -46,7 +49,9 @@ jobs:
           labels=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/$repo_full_name/issues/$pr_number/labels")
+
           echo "Labels response: $labels"
+
           if echo "$labels" | jq empty; then
             label_names=$(echo "$labels" | jq -r '.[].name')
             version_labels=()
@@ -55,6 +60,7 @@ jobs:
                 version_labels+=("$label")
               fi
             done <<< "$label_names"
+
             if [ ${#version_labels[@]} -eq 0 ]; then
               echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
               exit 1
@@ -79,6 +85,7 @@ jobs:
             echo "Failed to fetch labels or invalid JSON response."
             exit 1
           fi
+
       - name: Install dependencies
         run: npm install
 
@@ -95,6 +102,7 @@ jobs:
           else
             echo "Version in package.json matches develop branch. No revert needed."
           fi
+
       - name: Bump version with custom commit message
         if: ${{ env.bump_type != '' }}
         run: |
@@ -104,6 +112,7 @@ jobs:
           new_version=$(jq -r .version package.json)
           git add package.json
           git commit -m "chore: bump version from $old_version to $new_version"
+
       - name: Push version bump commit
         if: ${{ env.bump_type != '' }}
         env:

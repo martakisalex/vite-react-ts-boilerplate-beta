@@ -99,10 +99,13 @@ jobs:
             for commit in $bump_commits; do
               git revert --no-edit $commit || {
                 echo "Conflict detected during revert of commit $commit. Attempting to resolve..."
+                # Abort the current revert operation
+                git revert --abort
                 # Resolve conflict by resetting package.json to the state before the bump
                 git checkout HEAD -- package.json
                 git add package.json
-                git revert --continue || exit 1
+                # Reapply the revert
+                git revert --no-edit $commit || exit 1
               }
             done
             git push origin HEAD:${{ github.head_ref }}

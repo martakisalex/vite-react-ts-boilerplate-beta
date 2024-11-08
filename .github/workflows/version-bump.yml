@@ -89,6 +89,7 @@ jobs:
           else
             echo "package.json version is already correct."
             echo "VERSION_CHANGED=false" >> $GITHUB_ENV
+          fi
 
       - name: Commit and push version bump if updated
         if: env.VERSION_CHANGED == 'true'

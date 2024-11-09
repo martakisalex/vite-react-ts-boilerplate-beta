@@ -43,7 +43,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/martakisalex/martakisalex-site-practice:latest
-            ghcr.io/martakisalex/martakisalex-site-practice:${{ env.VERSION }}
+            ghcr.io/martakisalex/vite-react-ts-boilerplate-beta:latest
+            ghcr.io/martakisalex/vite-react-ts-boilerplate-beta:${{ env.VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

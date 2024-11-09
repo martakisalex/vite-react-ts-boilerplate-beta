@@ -123,8 +123,11 @@ jobs:
         run: |
           git checkout ${{ github.head_ref }}
           
-          # Capture the current version without the suffix
+          # Capture the current version with suffix
           old_version=$(jq -r .version package.json)
+          
+          # Remove existing suffix to get the base version
+          base_version=$(echo $old_version | sed 's/-.*//')
           
           # Bump version with npm, updating both package.json and package-lock.json
           npm version ${{ env.bump_type }} --no-git-tag-version
@@ -137,12 +140,9 @@ jobs:
           # Ensure package-lock.json reflects the same version
           npm install  # This updates package-lock.json to the final version
           
-          # Capture the new version with suffix for the commit message
-          new_version=$(jq -r .version package.json)
-          
           # Stage and commit the updated files with the full version in the commit message
           git add package.json package-lock.json
-          git commit -m "chore: bump version from $old_version to $new_version"
+          git commit -m "chore: bump version from $old_version to $final_version"
 
       - name: Push version bump commit
         if: ${{ env.should_bump == 'true' && env.bump_type != '' }}

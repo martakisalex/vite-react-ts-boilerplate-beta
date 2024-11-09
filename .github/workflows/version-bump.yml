@@ -14,13 +14,6 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0  # Ensures the full history is fetched for accurate diffing
 
-      - name: Capture current version with suffix
-        id: capture_old_version
-        run: |
-          old_version=$(jq -r .version package.json)
-          echo "old_version=$old_version" >> $GITHUB_ENV
-          echo "Captured old version: $old_version"
-
       - name: Fetch target branch (develop)
         run: git fetch origin develop:develop
 
@@ -29,14 +22,20 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Get base version without suffix from target branch
-        id: get_base_version
+      - name: Capture old version from target branch
+        id: capture_old_version
         run: |
           git checkout develop
-          target_version=$(jq -r .version package.json)
-          base_version=$(echo $target_version | sed 's/-.*//')
+          old_version=$(jq -r .version package.json)
+          echo "old_version=$old_version" >> $GITHUB_ENV
+          echo "Captured old version from target branch: $old_version"
+
+      - name: Get base version without suffix
+        id: get_base_version
+        run: |
+          base_version=$(echo ${{ env.old_version }} | sed 's/-.*//')
           echo "base_version=$base_version" >> $GITHUB_ENV
-          echo "Base version from develop (without suffix): $base_version"
+          echo "Base version without suffix: $base_version"
 
       - name: Determine branch target and set suffix
         id: set_suffix

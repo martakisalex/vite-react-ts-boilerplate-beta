@@ -30,12 +30,34 @@ jobs:
           echo "target_version=$target_version" >> $GITHUB_ENV
           echo "Current version on develop: $target_version"
 
-      - name: Update PR branch version to match target branch
+      - name: Determine branch target and set suffix
+        id: set_suffix
+        run: |
+          target_branch="${{ github.event.pull_request.base.ref }}"
+          case "$target_branch" in
+            "develop")
+              suffix="-alpha"
+              ;;
+            "release")
+              suffix="-beta"
+              ;;
+            "main")
+              suffix=""
+              ;;
+            *)
+              echo "Unexpected target branch: $target_branch"
+              exit 1
+              ;;
+          esac
+          echo "suffix=$suffix" >> $GITHUB_ENV
+
+      - name: Update PR branch version with target suffix
         run: |
           git checkout ${{ github.head_ref }}
-          jq --arg version "$target_version" '.version = $version' package.json > temp.json && mv temp.json package.json
+          updated_version="${{ env.target_version }}${{ env.suffix }}"
+          jq --arg version "$updated_version" '.version = $version' package.json > temp.json && mv temp.json package.json
           git add package.json
-          git commit -m "chore: sync version with target branch" || echo "No changes to commit"
+          git commit -m "chore: sync version with target branch and add suffix" || echo "No changes to commit"
 
       - name: Determine if branch name is valid
         id: validate_branch
@@ -103,10 +125,14 @@ jobs:
           old_version=$(jq -r .version package.json)
           npm version ${{ env.bump_type }} --no-git-tag-version
           new_version=$(jq -r .version package.json)
+
+          # Add suffix to new version if required
+          final_version="${new_version}${{ env.suffix }}"
+          jq --arg version "$final_version" '.version = $version' package.json > temp.json && mv temp.json package.json
           
           # Ensure package-lock.json is also updated and committed
           git add package.json package-lock.json
-          git commit -m "chore: bump version from $old_version to $new_version"
+          git commit -m "chore: bump version from $old_version to $final_version"
 
       - name: Push version bump commit
         if: ${{ env.bump_type != '' }}

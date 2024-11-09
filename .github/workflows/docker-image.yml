@@ -6,11 +6,6 @@ on:
       - "main"
       - "develop"
       - "release/**"
-  pull_request:
-    branches:
-      - "main"
-      - "develop"
-      - "release/**"
 
 jobs:
 
@@ -33,9 +28,10 @@ jobs:
     - name: Build the Docker image
       run: |
         VERSION=$(cat version.txt)
-        docker build . --file Dockerfile --tag ghcr.io/${{ github.repository }}:$VERSION
+        docker build . --file Dockerfile --tag ghcr.io/${{ github.repository }}:$VERSION --tag ghcr.io/${{ github.repository }}:latest
 
     - name: Push the Docker image
       run: |
         VERSION=$(cat version.txt)
         docker push ghcr.io/${{ github.repository }}:$VERSION
+        docker push ghcr.io/${{ github.repository }}:latest

@@ -2,7 +2,7 @@ name: Auto Version Validation and Bump
 
 on:
   pull_request:
-    types: [opened, synchronize, labeled, unlabeled]
+    types: [opened, synchronize, labeled, unlabeled, edited]
 
 jobs:
   validate-and-bump-version:

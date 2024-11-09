@@ -1,9 +1,11 @@
 name: Build and Push Docker Image
 
 on:
-  push:
-    tags:
-      - '**'  # Triggers the workflow on any tag
+  workflow_run:
+    workflows:
+      - Tag on Merge
+    types:
+      - completed
 
 jobs:
   build-and-push-image:
@@ -29,11 +31,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract version from tag
-        id: version
+        id: extract_version
         run: |
-          VERSION=${GITHUB_REF_NAME}
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Tag version is $VERSION"
+          VERSION=${{ github.event.workflow_run.head_commit.message }}
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "Tag version is ${VERSION}"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v4

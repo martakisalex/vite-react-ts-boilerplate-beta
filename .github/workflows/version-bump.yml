@@ -22,14 +22,20 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Get base version without suffix from target branch
-        id: get_base_version
+      - name: Capture old version from target branch
+        id: capture_old_version
         run: |
           git checkout develop
-          target_version=$(jq -r .version package.json)
-          base_version=$(echo $target_version | sed 's/-.*//')
+          old_version=$(jq -r .version package.json)
+          echo "old_version=$old_version" >> $GITHUB_ENV
+          echo "Captured old version from target branch: $old_version"
+
+      - name: Get base version without suffix
+        id: get_base_version
+        run: |
+          base_version=$(echo ${{ env.old_version }} | sed 's/-.*//')
           echo "base_version=$base_version" >> $GITHUB_ENV
-          echo "Base version from develop (without suffix): $base_version"
+          echo "Base version without suffix: $base_version"
 
       - name: Determine branch target and set suffix
         id: set_suffix
@@ -122,8 +128,8 @@ jobs:
         if: ${{ env.should_bump == 'true' && env.bump_type != '' }}
         run: |
           git checkout ${{ github.head_ref }}
-          old_version=$(jq -r .version package.json)
-          # Bump version with npm, this will update both package.json and package-lock.json
+          
+          # Bump version with npm, updating both package.json and package-lock.json
           npm version ${{ env.bump_type }} --no-git-tag-version
           bumped_version=$(jq -r .version package.json)
           
@@ -134,9 +140,9 @@ jobs:
           # Ensure package-lock.json reflects the same version
           npm install  # This updates package-lock.json to the final version
           
-          # Stage and commit the updated files
+          # Stage and commit the updated files with the full version in the commit message
           git add package.json package-lock.json
-          git commit -m "chore: bump version from $old_version to $final_version"
+          git commit -m "chore: bump version from ${{ env.old_version }} to $final_version"
 
       - name: Push version bump commit
         if: ${{ env.should_bump == 'true' && env.bump_type != '' }}

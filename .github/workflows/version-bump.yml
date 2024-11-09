@@ -22,6 +22,13 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Capture current version with suffix
+        id: capture_old_version
+        run: |
+          old_version=$(jq -r .version package.json)
+          echo "old_version=$old_version" >> $GITHUB_ENV
+          echo "Captured old version: $old_version"
+
       - name: Get base version without suffix from target branch
         id: get_base_version
         run: |
@@ -123,9 +130,6 @@ jobs:
         run: |
           git checkout ${{ github.head_ref }}
           
-          # Capture the current version with suffix
-          old_version=$(jq -r .version package.json)
-          
           # Bump version with npm, updating both package.json and package-lock.json
           npm version ${{ env.bump_type }} --no-git-tag-version
           bumped_version=$(jq -r .version package.json)
@@ -139,7 +143,7 @@ jobs:
           
           # Stage and commit the updated files with the full version in the commit message
           git add package.json package-lock.json
-          git commit -m "chore: bump version from $old_version to $final_version"
+          git commit -m "chore: bump version from ${{ env.old_version }} to $final_version"
 
       - name: Push version bump commit
         if: ${{ env.should_bump == 'true' && env.bump_type != '' }}

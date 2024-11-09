@@ -6,9 +6,6 @@ on:
       - Tag on Merge
     types:
       - completed
-  push:
-    tags:
-      - 'v*'
 
 jobs:
   build-and-push-image:
@@ -36,7 +33,7 @@ jobs:
       - name: Extract version from tag
         id: extract_version
         run: |
-          VERSION=${{ github.ref_name }}  # Uses the tag name from the event
+          VERSION=${{ github.event.workflow_run.head_commit.message }}
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
           echo "Tag version is ${VERSION}"
 

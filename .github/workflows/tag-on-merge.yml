@@ -27,9 +27,6 @@ jobs:
         id: version
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          if [ "${{ github.ref }}" = "refs/heads/develop" ]; then
-            VERSION="${VERSION}-develop"
-          fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Check for existing tag

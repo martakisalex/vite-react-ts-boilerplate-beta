@@ -27,13 +27,7 @@ jobs:
         id: version
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          if [ "${{ github.ref }}" == "refs/heads/develop" ]; then
-            VERSION="${VERSION}-alpha"
-          elif [ "${{ github.ref }}" == "refs/heads/release" ]; then
-            VERSION="${VERSION}-beta"
-          fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Generated version: $VERSION"
 
       - name: Check for existing tag
         id: tag_check
@@ -46,7 +40,7 @@ jobs:
       - name: Create and push tag
         if: steps.tag_check.outcome == 'success'
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}  # Use a Personal Access Token with appropriate permissions
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"

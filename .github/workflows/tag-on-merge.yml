@@ -1,0 +1,48 @@
+name: Tag on Merge
+
+on:
+  push:
+    branches:
+      - develop
+      - release
+      - main
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Get version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Check for existing tag
+        id: tag_check
+        run: |
+          if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
+            echo "Tag v${{ env.VERSION }} already exists. Skipping tagging."
+            exit 0
+          fi
+
+      - name: Create and push tag
+        if: steps.tag_check.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}  # Use a Personal Access Token with appropriate permissions
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ env.VERSION }}"
+          git push origin "v${{ env.VERSION }}"

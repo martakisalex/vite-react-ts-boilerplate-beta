@@ -1,30 +1,20 @@
-name: Build and Push Docker Image
+name: Publish Docker Image
 
 on:
   push:
-    branches:
-      - develop
-      - release
-      - main
+    tags:
+      - 'v*'  # Triggers on any tag starting with 'v', like 'v1.0.0'
 
 jobs:
-  build-and-push-image:
+  build-and-push:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2  # Fetch enough history to compare changes
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
+      # Step 2: Log in to GitHub Container Registry
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
@@ -32,30 +22,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check if package.json version has changed
-        id: version_check
+      # Step 3: Build the Docker image
+      - name: Build Docker image
         run: |
-          if git diff HEAD^ HEAD -- package.json | grep '"version":'; then
-            echo "Version changed."
-          else
-            echo "No version change detected."
-            exit 1
-          fi
+          docker build -t ghcr.io/${{ github.repository }}:${{ github.ref_name }} .
+          docker tag ghcr.io/${{ github.repository }}:${{ github.ref_name }} ghcr.io/${{ github.repository }}:latest
 
-      - name: Extract new version from package.json
-        id: extract_version
+      # Step 4: Push the Docker image with tag and latest
+      - name: Push Docker image
         run: |
-          NEW_VERSION=$(jq -r '.version' package.json)
-          echo "NEW_VERSION=v${NEW_VERSION}" >> $GITHUB_ENV
-          echo "New version is v${NEW_VERSION}"
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/martakisalex/vite-react-ts-boilerplate-beta:latest
-            ghcr.io/martakisalex/vite-react-ts-boilerplate-beta:${{ env.NEW_VERSION }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          docker push ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          docker push ghcr.io/${{ github.repository }}:latest

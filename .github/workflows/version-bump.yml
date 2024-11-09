@@ -22,13 +22,15 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Get current version from target branch (develop)
-        id: get_target_version
+      - name: Get base version without suffix from target branch
+        id: get_base_version
         run: |
           git checkout develop
           target_version=$(jq -r .version package.json)
-          echo "target_version=$target_version" >> $GITHUB_ENV
-          echo "Current version on develop: $target_version"
+          # Strip any suffixes (like -alpha, -beta) to get the base version
+          base_version=$(echo $target_version | sed 's/-.*//')
+          echo "base_version=$base_version" >> $GITHUB_ENV
+          echo "Base version from develop (without suffix): $base_version"
 
       - name: Determine branch target and set suffix
         id: set_suffix
@@ -51,13 +53,12 @@ jobs:
           esac
           echo "suffix=$suffix" >> $GITHUB_ENV
 
-      - name: Update PR branch version with target suffix
+      - name: Update PR branch version to base version
         run: |
           git checkout ${{ github.head_ref }}
-          updated_version="${{ env.target_version }}${{ env.suffix }}"
-          jq --arg version "$updated_version" '.version = $version' package.json > temp.json && mv temp.json package.json
+          jq --arg version "$base_version" '.version = $version' package.json > temp.json && mv temp.json package.json
           git add package.json
-          git commit -m "chore: sync version with target branch and add suffix" || echo "No changes to commit"
+          git commit -m "chore: sync version with target branch base version" || echo "No changes to commit"
 
       - name: Determine if branch name is valid
         id: validate_branch
@@ -118,16 +119,16 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Perform version bump with npm and check package-lock.json
+      - name: Perform version bump with suffix
         if: ${{ env.bump_type != '' }}
         run: |
           git checkout ${{ github.head_ref }}
           old_version=$(jq -r .version package.json)
           npm version ${{ env.bump_type }} --no-git-tag-version
-          new_version=$(jq -r .version package.json)
-
-          # Add suffix to new version if required
-          final_version="${new_version}${{ env.suffix }}"
+          bumped_version=$(jq -r .version package.json)
+          
+          # Add suffix to bumped version if required
+          final_version="${bumped_version}${{ env.suffix }}"
           jq --arg version "$final_version" '.version = $version' package.json > temp.json && mv temp.json package.json
           
           # Ensure package-lock.json is also updated and committed

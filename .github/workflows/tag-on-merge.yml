@@ -13,10 +13,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # Updated to the latest version
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3  # Updated to the latest version
+        uses: actions/setup-node@v3
         with:
           node-version: '18'
 
@@ -40,7 +40,7 @@ jobs:
       - name: Create and push tag
         if: steps.tag_check.outcome == 'success'
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}  # Use the PAT instead of GITHUB_TOKEN
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}  # Use a Personal Access Token with appropriate permissions
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"

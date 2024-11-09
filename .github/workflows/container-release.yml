@@ -3,7 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     tags:
-      - 'v*'  # Triggers the workflow on tags starting with 'v'
+      - '**'  # Triggers the workflow on any tag
 
 jobs:
   build-and-push-image:
@@ -31,7 +31,7 @@ jobs:
       - name: Extract version from tag
         id: version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION=${GITHUB_REF_NAME}
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Tag version is $VERSION"
 

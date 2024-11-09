@@ -60,18 +60,20 @@ jobs:
           git add package.json
           git commit -m "chore: sync version with target branch base version" || echo "No changes to commit"
 
-      - name: Determine if branch name is valid
+      - name: Determine if branch name requires version bump
         id: validate_branch
         run: |
           branch_name="${{ github.head_ref }}"
           if [[ "$branch_name" =~ ^(feat|fix|hotfix|style|refactor|perf|test)/ ]]; then
-            echo "Branch name is valid."
+            echo "Branch requires version bump."
+            echo "should_bump=true" >> $GITHUB_ENV
           else
-            echo "Invalid branch name: $branch_name. Branch must start with one of feat/, fix/, hotfix/, style/, refactor/, perf/, or test/."
-            exit 1
+            echo "Branch does not require version bump."
+            echo "should_bump=false" >> $GITHUB_ENV
           fi
 
       - name: Verify PR label for version bump
+        if: ${{ env.should_bump == 'true' }}
         id: check_label
         run: |
           pr_number=${{ github.event.pull_request.number }}
@@ -120,7 +122,7 @@ jobs:
         run: npm install
 
       - name: Perform version bump with suffix
-        if: ${{ env.bump_type != '' }}
+        if: ${{ env.should_bump == 'true' && env.bump_type != '' }}
         run: |
           git checkout ${{ github.head_ref }}
           old_version=$(jq -r .version package.json)
@@ -136,7 +138,7 @@ jobs:
           git commit -m "chore: bump version from $old_version to $final_version"
 
       - name: Push version bump commit
-        if: ${{ env.bump_type != '' }}
+        if: ${{ env.should_bump == 'true' && env.bump_type != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

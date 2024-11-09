@@ -57,8 +57,10 @@ jobs:
             suffix=""
           elif [[ "$branch_name" == "release" && "$target_branch" == "develop" ]]; then
             suffix="-beta"
+            no_bump=true
           fi
           echo "final_suffix=$suffix" >> $GITHUB_ENV
+          echo "no_bump=${no_bump:-false}" >> $GITHUB_ENV
 
       - name: Update PR branch version to base version
         run: |
@@ -71,7 +73,7 @@ jobs:
         id: validate_branch
         run: |
           branch_name="${{ github.head_ref }}"
-          if [[ "$branch_name" =~ ^(feat|fix|hotfix|style|refactor|perf|test|release)/ ]]; then
+          if [[ "$branch_name" =~ ^(feat|fix|hotfix|style|refactor|perf|test|release)/ ]] && [[ "${{ env.no_bump }}" != "true" ]]; then
             echo "Branch requires version bump."
             echo "should_bump=true" >> $GITHUB_ENV
           else

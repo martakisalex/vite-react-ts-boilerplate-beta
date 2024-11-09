@@ -5,8 +5,12 @@ on:
     workflows:
       - Tag on Merge
     types:
+<<<<<<< HEAD
       - completed  # This triggers on completion of 'Tag on Merge' workflow
 
+=======
+      - completed
+>>>>>>> develop
   push:
     tags:
       - 'v*'

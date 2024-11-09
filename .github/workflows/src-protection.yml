@@ -34,7 +34,7 @@ jobs:
           branch_name="${{ github.head_ref }}"
 
           # Check if branch name starts with allowed prefixes
-          if [[ ! "$branch_name" =~ ^(feat/|fix/|style/|refactor/|perf/|test/).* ]]; then
+          if [[ ! "$branch_name" =~ ^(feat/|fix/|hotfix/|style/|refactor/|perf/|test/).* ]]; then
             echo "Changes in src/ directory are not allowed on this branch ($branch_name)."
             echo ""
             

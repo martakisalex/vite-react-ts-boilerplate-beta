@@ -126,9 +126,6 @@ jobs:
           # Capture the current version with suffix
           old_version=$(jq -r .version package.json)
           
-          # Remove existing suffix to get the base version
-          base_version=$(echo $old_version | sed 's/-.*//')
-          
           # Bump version with npm, updating both package.json and package-lock.json
           npm version ${{ env.bump_type }} --no-git-tag-version
           bumped_version=$(jq -r .version package.json)

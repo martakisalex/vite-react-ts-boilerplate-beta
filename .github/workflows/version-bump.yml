@@ -64,7 +64,7 @@ jobs:
         id: validate_branch
         run: |
           branch_name="${{ github.head_ref }}"
-          if [[ "$branch_name" =~ ^(feat|fix|hotfix|style|refactor|perf|test)/ ]]; then
+          if [[ "$branch_name" =~ ^(feat|fix|hotfix|style|refactor|perf|test|release)/ ]]; then
             echo "Branch requires version bump."
             echo "should_bump=true" >> $GITHUB_ENV
           else
@@ -94,8 +94,13 @@ jobs:
             done <<< "$label_names"
 
             if [ ${#version_labels[@]} -eq 0 ]; then
-              echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
-              exit 1
+              # Default to patch bump if no label and branch is release/*
+              if [[ "$branch_name" =~ ^release/ ]]; then
+                bump_type="patch"
+              else
+                echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
+                exit 1
+              fi
             elif [ ${#version_labels[@]} -gt 1 ]; then
               echo "Multiple version labels found: ${version_labels[@]}. Please ensure only one version label is applied."
               exit 1
@@ -111,8 +116,8 @@ jobs:
                   bump_type="patch"
                   ;;
               esac
-              echo "bump_type=$bump_type" >> $GITHUB_ENV
             fi
+            echo "bump_type=$bump_type" >> $GITHUB_ENV
           else
             echo "Failed to fetch labels or invalid JSON response."
             exit 1

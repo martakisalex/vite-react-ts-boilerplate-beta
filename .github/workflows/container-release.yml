@@ -1,11 +1,9 @@
 name: Build and Push Docker Image
 
 on:
-  workflow_run:
-    workflows:
-      - Tag on Merge
-    types:
-      - completed
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build-and-push-image:
@@ -33,7 +31,7 @@ jobs:
       - name: Extract version from tag
         id: extract_version
         run: |
-          VERSION=$(git describe --tags --abbrev=0)
+          VERSION=${{ github.ref_name }}
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
           echo "Tag version is ${VERSION}"
 

@@ -11,6 +11,9 @@ jobs:
   create-tag:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write  # Only this permission is needed
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,7 +43,7 @@ jobs:
       - name: Create and push tag
         if: steps.tag_check.outcome == 'success'
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}  # Use a Personal Access Token with appropriate permissions
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"

@@ -27,7 +27,6 @@ jobs:
         run: |
           git checkout develop
           target_version=$(jq -r .version package.json)
-          # Strip any suffixes (like -alpha, -beta) to get the base version
           base_version=$(echo $target_version | sed 's/-.*//')
           echo "base_version=$base_version" >> $GITHUB_ENV
           echo "Base version from develop (without suffix): $base_version"
@@ -82,8 +81,6 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/$repo_full_name/issues/$pr_number/labels")
 
-          echo "Labels response: $labels"
-
           if echo "$labels" | jq empty; then
             label_names=$(echo "$labels" | jq -r '.[].name')
             version_labels=()
@@ -126,14 +123,18 @@ jobs:
         run: |
           git checkout ${{ github.head_ref }}
           old_version=$(jq -r .version package.json)
+          # Bump version with npm, this will update both package.json and package-lock.json
           npm version ${{ env.bump_type }} --no-git-tag-version
           bumped_version=$(jq -r .version package.json)
           
-          # Add suffix to bumped version if required
+          # Add suffix to bumped version in package.json
           final_version="${bumped_version}${{ env.suffix }}"
           jq --arg version "$final_version" '.version = $version' package.json > temp.json && mv temp.json package.json
           
-          # Ensure package-lock.json is also updated and committed
+          # Ensure package-lock.json reflects the same version
+          npm install  # This updates package-lock.json to the final version
+          
+          # Stage and commit the updated files
           git add package.json package-lock.json
           git commit -m "chore: bump version from $old_version to $final_version"
 

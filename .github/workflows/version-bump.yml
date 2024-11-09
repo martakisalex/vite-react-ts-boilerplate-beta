@@ -53,11 +53,11 @@ jobs:
           branch_name="${{ github.head_ref }}"
           target_branch="${{ github.event.pull_request.base.ref }}"
           
-          if [[ "$branch_name" == "release" && "$target_branch" == "main" ]]; then
-            suffix=""
-          elif [[ "$branch_name" == "release" && "$target_branch" == "develop" ]]; then
-            suffix="-beta"
+          if [[ "$branch_name" == "main" && "$target_branch" == "develop" ]]; then
+            suffix="-alpha"
             no_bump=true
+          elif [[ "$branch_name" == "release" && "$target_branch" == "main" ]]; then
+            suffix=""
           fi
           echo "final_suffix=$suffix" >> $GITHUB_ENV
           echo "no_bump=${no_bump:-false}" >> $GITHUB_ENV

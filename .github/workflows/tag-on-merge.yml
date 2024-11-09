@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write  # Only this permission is needed
+      contents: write  # This permission is needed
 
     steps:
       - name: Checkout code

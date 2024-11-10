@@ -11,44 +11,20 @@ jobs:
       - name: Check out the PR branch
         uses: actions/checkout@v2
         with:
-          ref: ${{ github.head_ref }}
           fetch-depth: 0  # Ensures the full history is fetched for accurate diffing
-
-      - name: Fetch target branches
-        run: |
-          git fetch origin develop:develop
-          git fetch origin main:main
 
       - name: Set up Git user
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Capture old version from target branch
-        id: capture_old_version
-        run: |
-          git checkout develop
-          old_version=$(jq -r .version package.json)
-          echo "old_version=$old_version" >> $GITHUB_ENV
-          echo "Captured old version from target branch: $old_version"
-
-      - name: Get base version without suffix
-        id: get_base_version
-        run: |
-          base_version=$(echo ${{ env.old_version }} | sed 's/-.*//')
-          echo "base_version=$base_version" >> $GITHUB_ENV
-          echo "Base version without suffix: $base_version"
-
-      - name: Determine branch target and set suffix
+      - name: Determine target branch and set suffix
         id: set_suffix
         run: |
           target_branch="${{ github.event.pull_request.base.ref }}"
           case "$target_branch" in
             "develop")
               suffix="-alpha"
-              ;;
-            "release")
-              suffix="-beta"
               ;;
             "main")
               suffix=""
@@ -60,28 +36,11 @@ jobs:
           esac
           echo "suffix=$suffix" >> $GITHUB_ENV
 
-      - name: Update PR branch version to base version
-        run: |
-          git checkout ${{ github.head_ref }}
-          jq --arg version "$base_version" '.version = $version' package.json > temp.json && mv temp.json package.json
-          git add package.json
-          git commit -m "chore: sync version with target branch base version" || echo "No changes to commit"
+      - name: Install dependencies
+        run: npm install
 
-      - name: Determine if branch name requires version bump
-        id: validate_branch
-        run: |
-          branch_name="${{ github.head_ref }}"
-          if [[ "$branch_name" =~ ^(feat|fix|hotfix|style|refactor|perf|test)/ ]]; then
-            echo "Branch requires version bump."
-            echo "should_bump=true" >> $GITHUB_ENV
-          else
-            echo "Branch does not require version bump."
-            echo "should_bump=false" >> $GITHUB_ENV
-          fi
-
-      - name: Verify PR label for version bump
-        if: ${{ env.should_bump == 'true' }}
-        id: check_label
+      - name: Determine bump type from PR labels
+        id: determine_bump_type
         run: |
           pr_number=${{ github.event.pull_request.number }}
           repo_full_name=${{ github.repository }}
@@ -89,23 +48,11 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/$repo_full_name/issues/$pr_number/labels")
 
+          bump_type=""
           if echo "$labels" | jq empty; then
             label_names=$(echo "$labels" | jq -r '.[].name')
-            version_labels=()
             while IFS= read -r label; do
-              if [[ "$label" =~ ^version:\ (major|minor|patch)$ ]]; then
-                version_labels+=("$label")
-              fi
-            done <<< "$label_names"
-
-            if [ ${#version_labels[@]} -eq 0 ]; then
-              echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
-              exit 1
-            elif [ ${#version_labels[@]} -gt 1 ]; then
-              echo "Multiple version labels found: ${version_labels[@]}. Please ensure only one version label is applied."
-              exit 1
-            else
-              case "${version_labels[0]}" in
+              case "$label" in
                 "version: major")
                   bump_type="major"
                   ;;
@@ -116,45 +63,36 @@ jobs:
                   bump_type="patch"
                   ;;
               esac
-              echo "bump_type=$bump_type" >> $GITHUB_ENV
-            fi
-          else
-            echo "Failed to fetch labels or invalid JSON response."
+            done <<< "$label_names"
+          fi
+
+          if [ -z "$bump_type" ]; then
+            echo "No valid version label found (major, minor, or patch)."
             exit 1
           fi
 
-      - name: Install dependencies
-        run: npm install
+          echo "bump_type=$bump_type" >> $GITHUB_ENV
 
-      - name: Perform version bump with suffix
-        if: ${{ env.should_bump == 'true' && env.bump_type != '' }}
+      - name: Perform version bump and apply suffix
+        if: ${{ github.head_ref.startsWith('release/') }}
         run: |
-          git checkout ${{ github.head_ref }}
-          
-          # Bump version with npm, updating both package.json and package-lock.json
+          # Bump the version in package.json based on the label
           npm version ${{ env.bump_type }} --no-git-tag-version
           bumped_version=$(jq -r .version package.json)
-          
-          # Apply suffix logic based on the target branch
-          if [ "${{ github.event.pull_request.base.ref }}" == "main" ]; then
-            final_version="${bumped_version}"  # Remove -beta suffix for main
-          elif [ "${{ github.event.pull_request.base.ref }}" == "develop" ]; then
-            final_version="${bumped_version}-alpha"  # Set -alpha suffix for develop
-          else
-            final_version="${bumped_version}-beta"  # Keep -beta suffix for release
-          fi
 
+          # Apply suffix based on the target branch
+          final_version="${bumped_version}${{ env.suffix }}"
           jq --arg version "$final_version" '.version = $version' package.json > temp.json && mv temp.json package.json
-          
-          # Ensure package-lock.json reflects the same version
-          npm install  # This updates package-lock.json to the final version
-          
+
+          # Ensure package-lock.json reflects the updated version
+          npm install  # Updates package-lock.json to the final version
+
           # Stage and commit the updated files with the full version in the commit message
           git add package.json package-lock.json
-          git commit -m "chore: bump version from ${{ env.old_version }} to $final_version"
+          git commit -m "chore: bump version to $final_version based on target branch suffix"
 
-      - name: Push version bump commit
-        if: ${{ env.should_bump == 'true' && env.bump_type != '' }}
+      - name: Push version bump commit to PR branch
+        if: ${{ github.head_ref.startsWith('release/') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

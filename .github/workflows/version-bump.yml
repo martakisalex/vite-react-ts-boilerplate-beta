@@ -14,8 +14,12 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0  # Ensures the full history is fetched for accurate diffing
 
-      - name: Fetch target branch (develop)
-        run: git fetch origin develop:develop
+      - name: Fetch target branch (develop or release)
+        run: |
+          git fetch origin develop:develop
+          if [[ "${{ github.event.pull_request.base.ref }}" == release/* ]]; then
+            git fetch origin ${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}
+          fi
 
       - name: Set up Git user
         run: |
@@ -25,7 +29,7 @@ jobs:
       - name: Capture old version from target branch
         id: capture_old_version
         run: |
-          git checkout develop
+          git checkout ${{ github.event.pull_request.base.ref }}
           old_version=$(jq -r .version package.json)
           echo "old_version=$old_version" >> $GITHUB_ENV
           echo "Captured old version from target branch: $old_version"
@@ -45,11 +49,11 @@ jobs:
             "develop")
               suffix="-alpha"
               ;;
-            "release")
-              suffix="-beta"
-              ;;
             "main")
               suffix=""
+              ;;
+            release/*)
+              suffix="-beta"
               ;;
             *)
               echo "Unexpected target branch: $target_branch"

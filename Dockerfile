@@ -32,5 +32,5 @@ RUN npm install --only=production
 # Expose the port that the app runs on
 EXPOSE 3000
 
-# Command to start the application
-CMD ["npm", "start"]
+# Command to serve the production build
+CMD ["npm", "run", "preview"]

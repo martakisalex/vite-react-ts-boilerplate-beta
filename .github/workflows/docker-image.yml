@@ -6,6 +6,11 @@ on:
       - "main"
       - "develop"
       - "release/**"
+  pull_request:
+    branches:
+      - "main"
+      - "develop"
+      - "release/**"
 
 jobs:
   build-and-push:
@@ -19,28 +24,32 @@ jobs:
       run: |
         VERSION=$(jq -r '.version' package.json)
         echo "v$VERSION" > version.txt
+        echo "::set-output name=VERSION::v$VERSION"
 
     - name: Log in to GitHub Container Registry
+      if: github.event_name == 'push'
       run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
     - name: Delete existing Docker image tag if it exists
+      if: github.event_name == 'push'
       env:
-        VERSION: $(cat version.txt)
+        VERSION: ${{ steps.get_version.outputs.VERSION }}
+        REPOSITORY: ${{ github.repository }}
       run: |
-        IMAGE="ghcr.io/${{ github.repository }}"
+        IMAGE="ghcr.io/$REPOSITORY:$VERSION"
         
-        # Fetch the image manifest digest for the specific version tag
+        # Retrieve the manifest digest for the specified version tag
         DIGEST=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
                 -H "Accept: application/vnd.oci.image.manifest.v1+json" \
-                "https://ghcr.io/v2/${{ github.repository }}/manifests/$VERSION" \
-                | jq -r '.config.digest')
-        
-        if [ -n "$DIGEST" ]; then
-          # Delete the manifest using the digest
+                "https://ghcr.io/v2/$REPOSITORY/manifests/$VERSION" | jq -r '.config.digest')
+
+        if [ -n "$DIGEST" ] && [ "$DIGEST" != "null" ]; then
+          echo "Deleting existing image with tag $VERSION (digest: $DIGEST)"
+          # Delete the manifest using the retrieved digest
           curl -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-               "https://ghcr.io/v2/${{ github.repository }}/manifests/$DIGEST"
+               "https://ghcr.io/v2/$REPOSITORY/manifests/$DIGEST"
         else
-          echo "No existing image with tag $VERSION found. Skipping delete."
+          echo "No existing image with tag $VERSION found or unable to retrieve digest. Skipping delete."
         fi
 
     - name: Build the Docker image
@@ -49,6 +58,7 @@ jobs:
         docker build . --file Dockerfile --tag ghcr.io/${{ github.repository }}:$VERSION --tag ghcr.io/${{ github.repository }}:latest
 
     - name: Push the Docker image
+      if: github.event_name == 'push'
       run: |
         VERSION=$(cat version.txt)
         docker push ghcr.io/${{ github.repository }}:$VERSION

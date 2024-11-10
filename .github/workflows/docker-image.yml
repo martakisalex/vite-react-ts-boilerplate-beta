@@ -24,14 +24,23 @@ jobs:
       run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
     - name: Delete existing Docker image tag if it exists
+      env:
+        VERSION: $(cat version.txt)
       run: |
-        VERSION=$(cat version.txt)
-        IMAGE="ghcr.io/${{ github.repository }}:$VERSION"
-        TAGS=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-                 "https://ghcr.io/v2/${{ github.repository }}/tags/list")
-        if echo "$TAGS" | grep -q "$VERSION"; then
+        IMAGE="ghcr.io/${{ github.repository }}"
+        
+        # Fetch the image manifest digest for the specific version tag
+        DIGEST=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+                "https://ghcr.io/v2/${{ github.repository }}/manifests/$VERSION" \
+                | jq -r '.config.digest')
+        
+        if [ -n "$DIGEST" ]; then
+          # Delete the manifest using the digest
           curl -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-               "https://ghcr.io/v2/${{ github.repository }}/manifests/$VERSION"
+               "https://ghcr.io/v2/${{ github.repository }}/manifests/$DIGEST"
+        else
+          echo "No existing image with tag $VERSION found. Skipping delete."
         fi
 
     - name: Build the Docker image

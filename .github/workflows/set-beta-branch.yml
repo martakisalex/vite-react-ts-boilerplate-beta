@@ -1,0 +1,48 @@
+name: Set Beta Version on Release Branch
+
+on:
+  create:
+    # Runs when any branch or tag is created
+  push:
+    branches:
+      - "release/*"  # Trigger only for branches that start with 'release/'
+
+jobs:
+  set-beta-version:
+    runs-on: ubuntu-latest
+    if: github.event.ref_type == 'branch' && startsWith(github.ref, 'refs/heads/release/')
+    steps:
+      - name: Check out the branch
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Git user
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Capture current version and strip suffix if present
+        id: get_base_version
+        run: |
+          base_version=$(jq -r .version package.json | sed 's/-.*//')
+          echo "base_version=$base_version" >> $GITHUB_ENV
+          echo "Base version without suffix: $base_version"
+
+      - name: Set beta version in package.json and package-lock.json
+        run: |
+          # Update version to X.X.X-beta in package.json
+          jq --arg version "${{ env.base_version }}-beta" '.version = $version' package.json > temp.json && mv temp.json package.json
+          
+          # Update version in package-lock.json to match
+          npm install  # Updates package-lock.json to reflect the new version
+          
+          # Commit the changes
+          git add package.json package-lock.json
+          git commit -m "chore: set version to ${{ env.base_version }}-beta for release branch"
+
+      - name: Push version update
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin HEAD:${{ github.ref_name }}

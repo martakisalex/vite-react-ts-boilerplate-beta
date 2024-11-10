@@ -19,18 +19,17 @@ RUN npm run build
 # Second Stage: Serve the built application with a smaller base image
 FROM node:18-alpine
 
+# Install `serve` to serve static files
+RUN npm install -g serve
+
 # Set the working directory
 WORKDIR /app
 
-# Copy only the production build and package files from the build stage
+# Copy only the production build from the build stage
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/package*.json ./
-
-# Install only production dependencies
-RUN npm install --only=production
 
 # Expose the port that the app runs on
 EXPOSE 3000
 
 # Command to serve the production build
-CMD ["npm", "run", "preview"]
+CMD ["serve", "-s", "dist", "-l", "3000"]

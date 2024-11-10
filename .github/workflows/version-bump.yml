@@ -14,8 +14,10 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0  # Ensures the full history is fetched for accurate diffing
 
-      - name: Fetch target branch (develop)
-        run: git fetch origin develop:develop
+      - name: Fetch target branches
+        run: |
+          git fetch origin develop:develop
+          git fetch origin main:main
 
       - name: Set up Git user
         run: |
@@ -135,11 +137,11 @@ jobs:
           
           # Apply suffix logic based on the target branch
           if [ "${{ github.event.pull_request.base.ref }}" == "main" ]; then
-            final_version="${bumped_version}"
+            final_version="${bumped_version}"  # Remove -beta suffix for main
           elif [ "${{ github.event.pull_request.base.ref }}" == "develop" ]; then
-            final_version="${bumped_version}-alpha"
+            final_version="${bumped_version}-alpha"  # Set -alpha suffix for develop
           else
-            final_version="${bumped_version}${{ env.suffix }}"
+            final_version="${bumped_version}-beta"  # Keep -beta suffix for release
           fi
 
           jq --arg version "$final_version" '.version = $version' package.json > temp.json && mv temp.json package.json

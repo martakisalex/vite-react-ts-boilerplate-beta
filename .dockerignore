@@ -1,0 +1,39 @@
+# Ignore local dependencies and cache
+node_modules
+npm-debug.log
+yarn-error.log
+.pnpm-debug.log
+
+# Ignore Git repository files
+.git
+.gitignore
+
+# Ignore environment files (potentially sensitive)
+.env
+.env.local
+.env.*.local
+
+# Ignore Docker and Docker-related files
+Dockerfile
+.dockerignore
+
+# Ignore development and configuration files
+README.md
+*.md             # Ignore all markdown files (optional, if only README is needed)
+.vscode
+.idea            # Ignore WebStorm/IntelliJ IDE settings
+*.log            # Ignore log files
+
+# Ignore test files and directories
+__tests__
+coverage
+*.test.js
+*.spec.js
+
+# Ignore build output (only if you're copying source files and running the build inside the container)
+dist
+build
+out
+
+# Ignore GitHub-specific configuration
+.github

@@ -8,9 +8,7 @@ on:
       - "release/**"
 
 jobs:
-
   build-and-push:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -24,6 +22,17 @@ jobs:
 
     - name: Log in to GitHub Container Registry
       run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Delete existing Docker image tag if it exists
+      run: |
+        VERSION=$(cat version.txt)
+        IMAGE="ghcr.io/${{ github.repository }}:$VERSION"
+        TAGS=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                 "https://ghcr.io/v2/${{ github.repository }}/tags/list")
+        if echo "$TAGS" | grep -q "$VERSION"; then
+          curl -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+               "https://ghcr.io/v2/${{ github.repository }}/manifests/$VERSION"
+        fi
 
     - name: Build the Docker image
       run: |

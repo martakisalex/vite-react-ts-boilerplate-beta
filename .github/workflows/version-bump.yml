@@ -133,8 +133,15 @@ jobs:
           npm version ${{ env.bump_type }} --no-git-tag-version
           bumped_version=$(jq -r .version package.json)
           
-          # Add suffix to bumped version in package.json
-          final_version="${bumped_version}${{ env.suffix }}"
+          # Apply suffix logic based on the target branch
+          if [ "${{ github.event.pull_request.base.ref }}" == "main" ]; then
+            final_version="${bumped_version}"
+          elif [ "${{ github.event.pull_request.base.ref }}" == "develop" ]; then
+            final_version="${bumped_version}-alpha"
+          else
+            final_version="${bumped_version}${{ env.suffix }}"
+          fi
+
           jq --arg version "$final_version" '.version = $version' package.json > temp.json && mv temp.json package.json
           
           # Ensure package-lock.json reflects the same version

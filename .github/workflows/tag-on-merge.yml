@@ -40,10 +40,14 @@ jobs:
       - name: Check for existing tag and delete if necessary
         id: tag_check
         run: |
-          if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
-            echo "Tag v${{ env.VERSION }} already exists. Deleting old tag."
-            git tag -d "v${{ env.VERSION }}" || true
-            git push --delete origin "v${{ env.VERSION }}" || true
+          TAG="v${{ env.VERSION }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists locally. Deleting local tag."
+            git tag -d "$TAG"
+          fi
+          if git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
+            echo "Tag $TAG already exists on remote. Deleting remote tag."
+            git push origin --delete "$TAG"
           fi
 
       # Step 6: Create and push the new tag

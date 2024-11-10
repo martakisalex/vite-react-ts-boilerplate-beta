@@ -67,7 +67,7 @@ jobs:
       run: |
         # Fetch all container versions for the repository
         VERSIONS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-          "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.repository_name }}/versions")
+          "https://api.github.com/users/martakisalex/packages/container/vite-react-ts-boilerplate-beta/versions")
 
         # Loop through each version
         echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
@@ -80,7 +80,7 @@ jobs:
             
             # Delete the untagged version
             curl -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
-              "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.repository_name }}/versions/$VERSION_ID"
+              "https://api.github.com/users/martakisalex/packages/container/vite-react-ts-boilerplate-beta/versions/$VERSION_ID"
           else
             echo "Skipping tagged container version ID $VERSION_ID"
           fi

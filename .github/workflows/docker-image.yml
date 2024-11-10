@@ -6,11 +6,6 @@ on:
       - "main"
       - "develop"
       - "release/**"
-  pull_request:
-    branches:
-      - "main"
-      - "develop"
-      - "release/**"
 
 jobs:
   build-and-push:
@@ -63,3 +58,30 @@ jobs:
         VERSION=$(cat version.txt)
         docker push ghcr.io/${{ github.repository }}:$VERSION
         docker push ghcr.io/${{ github.repository }}:latest
+
+    - name: Delete Untagged Containers
+      if: github.event_name == 'push'
+      env:
+        REPOSITORY: ${{ github.repository }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Fetch all container versions for the repository
+        VERSIONS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+          "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.repository_name }}/versions")
+
+        # Loop through each version
+        echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
+          VERSION_ID=$(echo "$version" | jq -r '.id')
+          TAGS=$(echo "$version" | jq -r '.metadata.container.tags')
+
+          # Check if tags are empty, indicating an untagged container
+          if [ "$TAGS" = "[]" ]; then
+            echo "Deleting untagged container version ID $VERSION_ID"
+            
+            # Delete the untagged version
+            curl -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
+              "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.repository_name }}/versions/$VERSION_ID"
+          else
+            echo "Skipping tagged container version ID $VERSION_ID"
+          fi
+        done

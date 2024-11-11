@@ -42,43 +42,31 @@ jobs:
           echo "base_version=$base_version" >> $GITHUB_ENV
           echo "Base version without suffix: $base_version"
 
-      - name: Determine branch target and set suffix or release version
-        id: set_version
+      - name: Determine branch target and set suffix
+        id: set_suffix
         run: |
           target_branch="${{ github.event.pull_request.base.ref }}"
-          head_branch="${{ github.head_ref }}"
-          
-          if [[ "$target_branch" == "main" && "$head_branch" =~ ^release/([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-            # Extract version from release branch name
-            final_version="${BASH_REMATCH[1]}"
-            suffix=""
-          else
-            case "$target_branch" in
-              "develop")
-                suffix="-alpha"
-                ;;
-              "main")
-                suffix=""
-                ;;
-              release/*)
-                suffix="-beta"
-                ;;
-              *)
-                echo "Unexpected target branch: $target_branch"
-                exit 1
-                ;;
-            esac
-            final_version="${base_version}${suffix}"
-          fi
-          
-          echo "final_version=$final_version" >> $GITHUB_ENV
+          case "$target_branch" in
+            "develop")
+              suffix="-alpha"
+              ;;
+            "main")
+              suffix=""
+              ;;
+            release/*)
+              suffix="-beta"
+              ;;
+            *)
+              echo "Unexpected target branch: $target_branch"
+              exit 1
+              ;;
+          esac
           echo "suffix=$suffix" >> $GITHUB_ENV
-          echo "Version to be applied: $final_version"
 
-      - name: Update PR branch version to final version
+      - name: Update PR branch version to base version
         run: |
           git checkout ${{ github.head_ref }}
-          jq --arg version "$final_version" '.version = $version' package.json > temp.json && mv temp.json package.json
+          jq --arg version "$base_version" '.version = $version' package.json > temp.json && mv temp.json package.json
           git add package.json
           git commit -m "chore: sync version with target branch base version" || echo "No changes to commit"
 

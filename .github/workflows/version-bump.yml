@@ -14,10 +14,9 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0  # Ensures the full history is fetched for accurate diffing
 
-      - name: Fetch target branches (develop, release, main)
+      - name: Fetch target branch (develop or release)
         run: |
           git fetch origin develop:develop
-          git fetch origin main:main
           if [[ "${{ github.event.pull_request.base.ref }}" == release/* ]]; then
             git fetch origin ${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}
           fi
@@ -129,8 +128,17 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Perform version bump with suffix
-        if: ${{ env.should_bump == 'true' && env.bump_type != '' }}
+      - name: Check if merging from release to main
+        id: check_release_to_main
+        run: |
+          if [[ "${{ github.event.pull_request.base.ref }}" == "main" && "${{ github.event.pull_request.head.ref }}" == release/* ]]; then
+            echo "is_release_to_main=true" >> $GITHUB_ENV
+          else
+            echo "is_release_to_main=false" >> $GITHUB_ENV
+          fi
+
+      - name: Perform version bump with suffix on release branch
+        if: ${{ env.should_bump == 'true' && env.bump_type != '' && env.is_release_to_main == 'true' }}
         run: |
           git checkout ${{ github.head_ref }}
           
@@ -149,8 +157,35 @@ jobs:
           git add package.json package-lock.json
           git commit -m "chore: bump version from ${{ env.old_version }} to $final_version"
 
-      - name: Push version bump commit
-        if: ${{ env.should_bump == 'true' && env.bump_type != '' }}
+      - name: Push version bump commit on release branch
+        if: ${{ env.should_bump == 'true' && env.bump_type != '' && env.is_release_to_main == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin HEAD:${{ github.head_ref }}
+
+      - name: Perform version bump with suffix on PR branch
+        if: ${{ env.should_bump == 'true' && env.bump_type != '' && env.is_release_to_main == 'false' }}
+        run: |
+          git checkout ${{ github.head_ref }}
+          
+          # Bump version with npm, updating both package.json and package-lock.json
+          npm version ${{ env.bump_type }} --no-git-tag-version
+          bumped_version=$(jq -r .version package.json)
+          
+          # Add suffix to bumped version in package.json
+          final_version="${bumped_version}${{ env.suffix }}"
+          jq --arg version "$final_version" '.version = $version' package.json > temp.json && mv temp.json package.json
+          
+          # Ensure package-lock.json reflects the same version
+          npm install  # This updates package-lock.json to the final version
+          
+          # Stage and commit the updated files with the full version in the commit message
+          git add package.json package-lock.json
+          git commit -m "chore: bump version from ${{ env.old_version }} to $final_version"
+
+      - name: Push version bump commit on PR branch
+        if: ${{ env.should_bump == 'true' && env.bump_type != '' && env.is_release_to_main == 'false' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

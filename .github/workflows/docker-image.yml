@@ -1,0 +1,86 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches:
+      - "main"
+      - "develop"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Extract version from package.json
+      id: get_version
+      run: |
+        VERSION=$(jq -r '.version' package.json)
+        echo "v$VERSION" > version.txt
+        echo "::set-output name=VERSION::v$VERSION"
+
+    - name: Log in to GitHub Container Registry
+      if: github.event_name == 'push'
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Delete existing Docker image tag if it exists
+      if: github.event_name == 'push'
+      env:
+        VERSION: ${{ steps.get_version.outputs.VERSION }}
+        REPOSITORY: ${{ github.repository }}
+      run: |
+        IMAGE="ghcr.io/$REPOSITORY:$VERSION"
+        
+        # Retrieve the manifest digest for the specified version tag
+        DIGEST=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+                "https://ghcr.io/v2/$REPOSITORY/manifests/$VERSION" | jq -r '.config.digest')
+
+        if [ -n "$DIGEST" ] && [ "$DIGEST" != "null" ]; then
+          echo "Deleting existing image with tag $VERSION (digest: $DIGEST)"
+          # Delete the manifest using the retrieved digest
+          curl -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+               "https://ghcr.io/v2/$REPOSITORY/manifests/$DIGEST"
+        else
+          echo "No existing image with tag $VERSION found or unable to retrieve digest. Skipping delete."
+        fi
+
+    - name: Build the Docker image
+      run: |
+        VERSION=$(cat version.txt)
+        docker build . --file Dockerfile --tag ghcr.io/${{ github.repository }}:$VERSION --tag ghcr.io/${{ github.repository }}:latest
+
+    - name: Push the Docker image
+      if: github.event_name == 'push'
+      run: |
+        VERSION=$(cat version.txt)
+        docker push ghcr.io/${{ github.repository }}:$VERSION
+        docker push ghcr.io/${{ github.repository }}:latest
+
+    - name: Delete Untagged Containers
+      if: github.event_name == 'push'
+      env:
+        REPOSITORY: ${{ github.repository }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Fetch all container versions for the repository
+        VERSIONS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+          "https://api.github.com/users/martakisalex/packages/container/vite-react-ts-boilerplate-beta/versions")
+
+        # Loop through each version
+        echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
+          VERSION_ID=$(echo "$version" | jq -r '.id')
+          TAGS=$(echo "$version" | jq -r '.metadata.container.tags')
+
+          # Check if tags are empty, indicating an untagged container
+          if [ "$TAGS" = "[]" ]; then
+            echo "Deleting untagged container version ID $VERSION_ID"
+            
+            # Delete the untagged version
+            curl -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
+              "https://api.github.com/users/martakisalex/packages/container/vite-react-ts-boilerplate-beta/versions/$VERSION_ID"
+          else
+            echo "Skipping tagged container version ID $VERSION_ID"
+          fi
+        done

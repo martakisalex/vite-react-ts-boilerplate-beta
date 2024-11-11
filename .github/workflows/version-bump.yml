@@ -6,6 +6,7 @@ on:
 
 jobs:
   validate-and-bump-version:
+    if: "!startsWith(github.head_ref, 'sync/')"  # Exit the entire job if the branch is sync/*
     runs-on: ubuntu-latest
     steps:
       - name: Check out the PR branch
@@ -13,12 +14,6 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0  # Ensures the full history is fetched for accurate diffing
-
-      - name: Skip version bump for sync branches
-        if: startsWith(github.head_ref, 'sync/')
-        run: |
-          echo "Branch is sync/*, skipping version bump."
-          exit 0
 
       - name: Fetch target branch (develop or release)
         run: |

@@ -23,8 +23,8 @@ jobs:
       - name: Sync current branch with target branch
         run: |
           git checkout ${{ github.head_ref }}
-          git merge --no-ff ${{ github.event.pull_request.base.ref }} -m "chore: sync with target branch"
-          git push origin HEAD:${{ github.head_ref }} || echo "No changes to push"
+          git merge --no-ff ${{ github.event.pull_request.base.ref }} -m "chore: sync with target branch" || echo "Already up to date"
+          git push origin HEAD:${{ github.head_ref }} --force || echo "No changes to push"
 
       - name: Capture and set base version
         id: capture_base_version

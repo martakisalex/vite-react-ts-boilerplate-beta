@@ -116,9 +116,6 @@ jobs:
           echo "bump_type=$bump_type" >> $GITHUB_ENV
           echo "Determined bump type: $bump_type"
 
-
-
-
       - name: Install dependencies
         run: npm install
 

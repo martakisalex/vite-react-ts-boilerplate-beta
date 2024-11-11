@@ -86,20 +86,36 @@ jobs:
           label_names=$(echo "$labels" | jq -r '.[].name')
           echo "Parsed label names: $label_names"
 
-          # Directly check for each label
+          # Count the version labels found
+          version_label_count=0
+          bump_type=""
+
+          # Check each label and set bump_type or count labels
           if echo "$label_names" | grep -q "version: major"; then
             bump_type="major"
-          elif echo "$label_names" | grep -q "version: minor"; then
+            version_label_count=$((version_label_count + 1))
+          fi
+          if echo "$label_names" | grep -q "version: minor"; then
             bump_type="minor"
-          elif echo "$label_names" | grep -q "version: patch"; then
+            version_label_count=$((version_label_count + 1))
+          fi
+          if echo "$label_names" | grep -q "version: patch"; then
             bump_type="patch"
-          else
-            echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
+            version_label_count=$((version_label_count + 1))
+          fi
+
+          # Fail if more than one version label is found
+          if [ "$version_label_count" -gt 1 ]; then
+            echo "Multiple version labels found. Please ensure only one version label (version: major, version: minor, or version: patch) is applied."
+            exit 1
+          elif [ "$version_label_count" -eq 0 ]; then
+            echo "No valid version label found. Please add one of the following labels: version: major, version: minor, or version: patch."
             exit 1
           fi
 
           echo "bump_type=$bump_type" >> $GITHUB_ENV
           echo "Determined bump type: $bump_type"
+
 
 
 

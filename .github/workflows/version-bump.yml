@@ -79,7 +79,13 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/$repo_full_name/issues/$pr_number/labels")
 
+          # Debugging output to check the labels response
+          echo "Labels JSON: $labels"
+
+          # Check for jq parsing and process labels
           label_names=$(echo "$labels" | jq -r '.[].name')
+          echo "Parsed label names: $label_names"
+
           bump_type=""
 
           # Determine the bump type based on the PR labels
@@ -104,6 +110,7 @@ jobs:
 
           echo "bump_type=$bump_type" >> $GITHUB_ENV
           echo "Determined bump type: $bump_type"
+
 
       - name: Install dependencies
         run: npm install

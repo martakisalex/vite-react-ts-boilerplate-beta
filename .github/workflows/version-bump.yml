@@ -14,7 +14,7 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0  # Ensures the full history is fetched for accurate diffing
 
-      - name: Fetch target branch (main, develop, or release)
+      - name: Fetch target branches (main, develop, or release)
         run: |
           git fetch origin main:main
           git fetch origin develop:develop
@@ -63,8 +63,7 @@ jobs:
           esac
           echo "suffix=$suffix" >> $GITHUB_ENV
 
-      - name: Sync release branch version to match target branch base version
-        if: ${{ github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'develop' || github.event.pull_request.base.ref == 'release/*' }}
+      - name: Update PR branch version to base version
         run: |
           git checkout ${{ github.head_ref }}
           jq --arg version "$base_version" '.version = $version' package.json > temp.json && mv temp.json package.json
@@ -130,7 +129,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Perform version bump with suffix
+      - name: Perform version bump with suffix (for all target branches)
         if: ${{ env.should_bump == 'true' && env.bump_type != '' }}
         run: |
           git checkout ${{ github.head_ref }}
@@ -150,8 +149,8 @@ jobs:
           git add package.json package-lock.json
           git commit -m "chore: bump version from ${{ env.old_version }} to $final_version"
 
-      - name: Push commits to release branch
-        if: ${{ github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'develop' || github.event.pull_request.base.ref == 'release/*' }}
+      - name: Push version bump commit (for all target branches)
+        if: ${{ env.should_bump == 'true' && env.bump_type != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

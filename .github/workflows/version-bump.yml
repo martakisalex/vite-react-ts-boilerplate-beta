@@ -12,9 +12,9 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: ${{ github.head_ref }}
-          fetch-depth: 0
+          fetch-depth: 0  # Ensures the full history is fetched for accurate diffing
 
-      - name: Fetch target branches (main, develop, or release)
+      - name: Fetch target branch (main, develop, or release)
         run: |
           git fetch origin main:main
           git fetch origin develop:develop
@@ -27,40 +27,47 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Identify target branch and determine if release to main
-        id: identify_target
+      - name: Capture old version from target branch
+        id: capture_old_version
+        run: |
+          git checkout ${{ github.event.pull_request.base.ref }}
+          old_version=$(jq -r .version package.json)
+          echo "old_version=$old_version" >> $GITHUB_ENV
+          echo "Captured old version from target branch: $old_version"
+
+      - name: Get base version without suffix
+        id: get_base_version
+        run: |
+          base_version=$(echo ${{ env.old_version }} | sed 's/-.*//')
+          echo "base_version=$base_version" >> $GITHUB_ENV
+          echo "Base version without suffix: $base_version"
+
+      - name: Determine branch target and set suffix
+        id: set_suffix
         run: |
           target_branch="${{ github.event.pull_request.base.ref }}"
           case "$target_branch" in
-            "main")
-              echo "is_release_to_main=true" >> $GITHUB_ENV
-              ;;
             "develop")
-              echo "is_release_to_develop=true" >> $GITHUB_ENV
+              suffix="-alpha"
+              ;;
+            "main")
+              suffix=""
               ;;
             release/*)
-              echo "is_release_to_release=true" >> $GITHUB_ENV
+              suffix="-beta"
               ;;
             *)
               echo "Unexpected target branch: $target_branch"
               exit 1
               ;;
           esac
+          echo "suffix=$suffix" >> $GITHUB_ENV
 
-      - name: Capture version from target branch (main or develop)
-        if: ${{ env.is_release_to_main == 'true' || env.is_release_to_develop == 'true' }}
-        id: capture_target_version
-        run: |
-          git checkout ${{ github.event.pull_request.base.ref }}
-          target_version=$(jq -r .version package.json)
-          echo "target_version=$target_version" >> $GITHUB_ENV
-          echo "Captured version from target branch: $target_version"
-
-      - name: Sync release branch version with target branch version
-        if: ${{ env.is_release_to_main == 'true' || env.is_release_to_develop == 'true' || env.is_release_to_release == 'true' }}
+      - name: Sync release branch version to match target branch base version
+        if: ${{ github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'develop' || github.event.pull_request.base.ref == 'release/*' }}
         run: |
           git checkout ${{ github.head_ref }}
-          jq --arg version "$target_version" '.version = $version' package.json > temp.json && mv temp.json package.json
+          jq --arg version "$base_version" '.version = $version' package.json > temp.json && mv temp.json package.json
           git add package.json
           git commit -m "chore: sync version with target branch base version" || echo "No changes to commit"
 
@@ -123,24 +130,28 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Bump version with suffix
+      - name: Perform version bump with suffix
         if: ${{ env.should_bump == 'true' && env.bump_type != '' }}
         run: |
           git checkout ${{ github.head_ref }}
-          
-          # Capture old version before bumping
-          old_version=$(jq -r .version package.json)
           
           # Bump version with npm, updating both package.json and package-lock.json
           npm version ${{ env.bump_type }} --no-git-tag-version
           bumped_version=$(jq -r .version package.json)
           
-          # Stage and commit the bumped version with the full version in the commit message
+          # Add suffix to bumped version in package.json
+          final_version="${bumped_version}${{ env.suffix }}"
+          jq --arg version "$final_version" '.version = $version' package.json > temp.json && mv temp.json package.json
+          
+          # Ensure package-lock.json reflects the same version
+          npm install  # This updates package-lock.json to the final version
+          
+          # Stage and commit the updated files with the full version in the commit message
           git add package.json package-lock.json
-          git commit -m "chore: bump version from $old_version to $bumped_version"
+          git commit -m "chore: bump version from ${{ env.old_version }} to $final_version"
 
       - name: Push commits to release branch
-        if: ${{ env.is_release_to_main == 'true' || env.is_release_to_release == 'true' || env.is_release_to_develop == 'true' }}
+        if: ${{ github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'develop' || github.event.pull_request.base.ref == 'release/*' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

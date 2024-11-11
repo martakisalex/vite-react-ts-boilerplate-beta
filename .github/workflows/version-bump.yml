@@ -128,13 +128,16 @@ jobs:
         run: |
           git checkout ${{ github.head_ref }}
           
+          # Capture old version before bumping
+          old_version=$(jq -r .version package.json)
+          
           # Bump version with npm, updating both package.json and package-lock.json
           npm version ${{ env.bump_type }} --no-git-tag-version
           bumped_version=$(jq -r .version package.json)
           
-          # Stage and commit the bumped version
+          # Stage and commit the bumped version with the full version in the commit message
           git add package.json package-lock.json
-          git commit -m "chore: bump version from $target_version to $bumped_version"
+          git commit -m "chore: bump version from $old_version to $bumped_version"
 
       - name: Push commits to release branch
         if: ${{ env.is_release_to_main == 'true' || env.is_release_to_release == 'true' || env.is_release_to_develop == 'true' }}

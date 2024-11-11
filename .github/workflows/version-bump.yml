@@ -82,34 +82,25 @@ jobs:
           # Debugging output to check the labels response
           echo "Labels JSON: $labels"
 
-          # Check for jq parsing and process labels
+          # Check for jq parsing and retrieve label names
           label_names=$(echo "$labels" | jq -r '.[].name')
           echo "Parsed label names: $label_names"
 
-          bump_type=""
-
-          # Determine the bump type based on the PR labels
-          for label in $label_names; do
-            case "$label" in
-              "version: major")
-                bump_type="major"
-                ;;
-              "version: minor")
-                bump_type="minor"
-                ;;
-              "version: patch")
-                bump_type="patch"
-                ;;
-            esac
-          done
-
-          if [ -z "$bump_type" ]; then
+          # Directly check for each label
+          if echo "$label_names" | grep -q "version: major"; then
+            bump_type="major"
+          elif echo "$label_names" | grep -q "version: minor"; then
+            bump_type="minor"
+          elif echo "$label_names" | grep -q "version: patch"; then
+            bump_type="patch"
+          else
             echo "No valid version label found. Please add a label: version: major, version: minor, or version: patch."
             exit 1
           fi
 
           echo "bump_type=$bump_type" >> $GITHUB_ENV
           echo "Determined bump type: $bump_type"
+
 
 
       - name: Install dependencies

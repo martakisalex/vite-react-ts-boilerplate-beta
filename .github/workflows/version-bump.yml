@@ -14,16 +14,14 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0  # Ensures the full history is fetched for accurate diffing
 
-      - name: Fetch target branch and set up Git
+      - name: Fetch and set up Git configuration
         run: |
           git fetch origin ${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Sync current branch with target branch and commit
+      - name: Sync current branch with target branch
         run: |
-          git checkout ${{ github.event.pull_request.base.ref }}
-          git pull origin ${{ github.event.pull_request.base.ref }}
           git checkout ${{ github.head_ref }}
           git merge --no-ff ${{ github.event.pull_request.base.ref }} -m "chore: sync with target branch"
           git push origin HEAD:${{ github.head_ref }} || echo "No changes to push"
@@ -46,13 +44,6 @@ jobs:
             *) echo "Unexpected target branch: ${{ github.event.pull_request.base.ref }}" && exit 1 ;;
           esac
           echo "suffix=$suffix" >> $GITHUB_ENV
-
-      - name: Sync current branch version to base version and commit
-        run: |
-          jq --arg version "$base_version" '.version = $version' package.json > temp.json && mv temp.json package.json
-          git add package.json
-          git commit -m "chore: sync version to base version" || echo "No changes to commit"
-          git push origin HEAD:${{ github.head_ref }}
 
       - name: Check PR label for bump type
         id: check_label
@@ -94,14 +85,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Bump version based on label and add suffix, then commit
+      - name: Perform version bump based on label and add suffix
         run: |
+          # Perform version bump
           npm version ${{ env.bump_type }} --no-git-tag-version
           bumped_version=$(jq -r .version package.json)
+          
+          # Add suffix to version if needed
           final_version="${bumped_version}${{ env.suffix }}"
           jq --arg version "$final_version" '.version = $version' package.json > temp.json && mv temp.json package.json
-          npm install  # Ensure package-lock.json reflects the same version
+          
+          # Ensure package-lock.json reflects the same version
+          npm install  # This updates package-lock.json to the final version
+          
+          # Commit bumped version
           git add package.json package-lock.json
           git commit -m "chore: bump version to $final_version"
           git push origin HEAD:${{ github.head_ref }}
-

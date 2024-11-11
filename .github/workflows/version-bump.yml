@@ -55,11 +55,14 @@ jobs:
       - name: Validate if branch requires version bump
         id: validate_bump
         run: |
-          if [[ "${{ github.head_ref }}" =~ ^(feat|fix|hotfix|style|refactor|perf|test)/ ]]; then
+          if [[ "${{ github.head_ref }}" =~ ^(feat|fix|hotfix|style|refactor|perf|test|release)/ ]]; then
+            echo "Branch requires version bump."
             echo "should_bump=true" >> $GITHUB_ENV
           else
+            echo "Branch does not require version bump."
             echo "should_bump=false" >> $GITHUB_ENV
           fi
+
 
       - name: Check PR label for bump type
         if: ${{ env.should_bump == 'true' }}
